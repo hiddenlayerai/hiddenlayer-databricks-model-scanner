@@ -1,0 +1,68 @@
+package utils
+
+import (
+	"fmt"
+	"github.com/spf13/viper"
+	"os"
+	"runtime"
+)
+
+type Config struct {
+	DbxHost        string `mapstructure:"dbx_host"`
+	DbxToken       string `mapstructure:"dbx_token"`
+	DbxCatalog     string `mapstructure:"dbx_catalog"`
+	DbxSchema      string `mapstructure:"dbx_schema"`
+	DbxClusterID   string `mapstructure:"dbx_cluster_id"`
+	HlApiKeyName   string `mapstructure:"hl_api_key_name"`
+	HlClientID     string `mapstructure:"hl_client_id"`
+	HlClientSecret string `mapstructure:"hl_client_secret"`
+}
+
+// ConfigNotFound is a custom error type for configuration not found errors
+type ConfigNotFound struct {
+	Message string
+}
+
+func (e *ConfigNotFound) Error() string {
+	return e.Message
+}
+
+// InitConfig reads in the configuration file and returns a Config object
+func InitConfig() (*Config, error) {
+	viper.SetConfigName("hldbx") // Config file name (without extension)
+	viper.SetConfigType("yaml")  // Config file format
+
+	// Determine the home directory based on the operating system
+	homeDir := os.Getenv("HOME")
+	if runtime.GOOS == "windows" {
+		homeDir = os.Getenv("USERPROFILE")
+	}
+
+	// Look for the config file in the .hl directory under the home directory
+	viper.AddConfigPath(fmt.Sprintf("%s/.hl", homeDir))
+
+	// Read and unmarshal the config file
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, &ConfigNotFound{Message: "no config file found"}
+	}
+	var config Config
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("unable to decode into struct, %v", err)
+	}
+
+	return &config, nil
+}
+
+// For testing only. Requires switching the file to the main package.
+//func main() {
+//	config, err := InitConfig()
+//	if err != nil {
+//		fmt.Printf("Error initializing config: %v\n", err)
+//		return
+//	}
+//
+//	// Use the config as needed
+//	fmt.Printf("Configuration loaded successfully:\n")
+//	fmt.Printf("hl_api_id: %s\n", config.HlApiId)
+//	fmt.Printf("hl_api_key: %s\n", config.HlApiKey)
+//}
