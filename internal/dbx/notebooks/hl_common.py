@@ -44,16 +44,6 @@ class ModelVersionNotFound(ModelVersionError):
         message = f"Could not find model version '{model_version.version}' for model '{model_version.name}'"
         super().__init__(model_version, message)
 
-class ModelVersionAlreadyScanned(ModelVersionError):
-    def __init__(self, model_version: ModelVersion):
-        message = f"Model '{model_version.name}' version {model_version.version} has already been submitted for scanning."
-        super().__init__(model_version, message)
-
-class ModelVersionNotRegistered(ModelVersionError):
-    def __init__(self, model_version: ModelVersion):
-        message = f"Model '{model_version.name}' version {model_version.version} is not registered with MLflow."
-        super().__init__(model_version, message)
-
 
 # Good for performance to create the MlflowClient just once.
 # Avoid using a global variable, which makes testing harder.
@@ -141,14 +131,3 @@ def get_model_version(
             raise ModelVersionNotFound(mv) from e
         else:
             raise ModelVersionError(mv, f"Failed to get model version {str(mv)}: {str(e)}") from e
-
-
-def check_model_version_is_ready_for_scanning(model_version: ModelVersion) -> None:
-    """Check that the model version is registered and ready for scanning"""
-    # Only allow unscanned models for now. Later we can allow rescanning.
-    scan_status = model_version.tags.get(HL_SCAN_STATUS)
-    if scan_status is not None and scan_status != STATUS_UNSCANNED:
-      raise ModelVersionAlreadyScanned(model_version=model_version)
-
-    if model_version.status != MODEL_VERSION_STATUS_READY:
-      raise ModelVersionNotRegistered(model_version=model_version)

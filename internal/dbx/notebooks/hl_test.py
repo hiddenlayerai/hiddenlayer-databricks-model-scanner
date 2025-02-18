@@ -55,54 +55,6 @@ register_test("test_get_bad_model_version", test_get_bad_model_version)
 
 # Tests
 
-def check_model_version_is_ready_for_scanning_happy_path() -> None:
-  # Happy path test
-  test_mv = ModelVersion(
-      name="dummy model version",
-      version="1",
-      creation_timestamp=0,
-      last_updated_timestamp=1)
-  try:
-      check_model_version_is_ready_for_scanning(test_mv)
-  except Exception as e:
-      raise Exception(f"Test of {check_model_version_is_ready_for_scanning} failed: {str(e)}")
-
-def check_model_version_is_ready_for_scanning_bad_registry_status() -> None:
-  # Test bad registry status
-  test_mv = ModelVersion(
-      name="dummy_model_version",
-      version="1",
-      creation_timestamp=0,
-      last_updated_timestamp=1,
-      status="model not ready")  # not a real status, but good enough for testing
-  try:
-      check_model_version_is_ready_for_scanning(test_mv)
-      raise Exception("Test of check_model_version_is_ready_for_scanning failed, expected ModelVersionNotRegistered exception")
-  except ModelVersionNotRegistered as e:
-      pass
-
-def check_model_version_is_ready_for_scanning_bad_scan_status() -> None:
-# Test bad scan status
-  from dataclasses import dataclass
-  from typing import Dict
-
-  @dataclass
-  class DummyModelVersion:
-      name: str
-      version: str
-      tags: Dict[str, str]
-
-  test_mv = DummyModelVersion("dummy_model_version", "1", tags={HL_SCAN_STATUS: STATUS_DONE})
-  try:
-    check_model_version_is_ready_for_scanning(test_mv)
-    raise Exception("Test of check_model_version_is_ready_for_scanning failed, expected ModelVersionAlreadyScanned exception")
-  except ModelVersionAlreadyScanned as e:
-      pass
-
-register_test("check_model_version_is_ready_for_scanning_happy_path", check_model_version_is_ready_for_scanning_happy_path)
-register_test("check_model_version_is_ready_for_scanning_bad_registry_status", check_model_version_is_ready_for_scanning_bad_registry_status)
-register_test("check_model_version_is_ready_for_scanning_bad_scan_status", check_model_version_is_ready_for_scanning_bad_scan_status)
-
 # Manual test - uncomment and run the code below. Tricky to automate because it has side effects on the registry.
 # Could use mocking but that's verbose and not a good test.
 # def get_test_mv():
