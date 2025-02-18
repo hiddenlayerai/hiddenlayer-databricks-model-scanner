@@ -253,6 +253,7 @@ def tag_model_version_with_scan_results(model_version: ModelVersion, scan_result
 # Scan the model version and save results as model registry tags.
 
 import tempfile
+import mlflow
 
 # Get job parameters - the model to scan (actually "model version", we'll be sloppy for the sake of brevity)
 full_model_name, model_version_num, hl_api_key_name = get_job_params()
