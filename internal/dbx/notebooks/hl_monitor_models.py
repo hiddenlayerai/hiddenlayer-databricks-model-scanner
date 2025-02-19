@@ -332,7 +332,7 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_conso
     if hl_console_url:
         parameters["hl_console_url"] = hl_console_url
     if hl_api_key_name:
-        parameters["hl_api_key_name"] = hl_api
+        parameters["hl_api_key_name"] = hl_api_key_name
     run_id = run_notebook(job_name, str(notebook_path), cluster_id, parameters, timeout_minutes=timeout_minutes)
     # For debugging purposes, save the run_id as a temporary tag
     set_model_version_tag(mv, HL_SCAN_RUN_ID, run_id)
