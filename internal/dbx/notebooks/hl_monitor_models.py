@@ -199,7 +199,7 @@ def is_init_done() -> bool:
     except ResourceDoesNotExist:
         return False
     except Exception as e:
-        exit(f"Unknown error occurred while checking HiddenLayer initialization status: {e}")
+        dbutils.notebook.exit(f"Unknown error occurred while checking HiddenLayer initialization status: {e}")
 
 # Manual test
 # mark_init_done()
@@ -389,7 +389,7 @@ if not is_init_done():
 # If there are no new model versions (untagged so STATUS_NONE), then we're done.
 num_new_models = len(mv_dict[STATUS_NONE])
 if num_new_models == 0:
-    exit("There are no new model versions to scan.")
+    dbutils.notebook.exit("There are no new model versions to scan.")
 
 # Light up scan jobs, up to the limit.
 # Note: our client-side scan status goes directly from pending to done. There is an intermediate "running" state
