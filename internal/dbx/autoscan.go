@@ -5,14 +5,15 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
+	"log"
+	"os"
+	"strings"
+
 	"github.com/databricks/databricks-sdk-go"
 	"github.com/databricks/databricks-sdk-go/service/jobs"
 	"github.com/databricks/databricks-sdk-go/service/workspace"
 	"github.com/google/uuid"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/utils"
-	"log"
-	"os"
-	"strings"
 )
 
 // Constants
@@ -187,6 +188,8 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 		{Name: "catalog", Default: config.DbxCatalog},
 		{Name: "schema", Default: config.DbxSchema},
 		{Name: "hl_api_key_name", Default: config.HlApiKeyName},
+		{Name: "hl_api_url", Default: config.HlApiUrl},
+		{Name: "hl_console_url", Default: config.HlConsoleUrl},
 	}
 
 	// Create and schedule the notebook job

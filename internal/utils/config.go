@@ -2,9 +2,10 @@ package utils
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"os"
 	"runtime"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -16,6 +17,8 @@ type Config struct {
 	HlApiKeyName   string `mapstructure:"hl_api_key_name"`
 	HlClientID     string `mapstructure:"hl_client_id"`
 	HlClientSecret string `mapstructure:"hl_client_secret"`
+	HlApiUrl       string `mapstructure:"hl_api_url"`
+	HlConsoleUrl   string `mapstructure:"hl_console_url"`
 }
 
 // ConfigNotFound is a custom error type for configuration not found errors
