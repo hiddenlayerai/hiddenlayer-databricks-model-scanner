@@ -44,150 +44,11 @@ from hl_common import *
 
 # COMMAND ----------
 
-from typing import Tuple
-
-def parse_full_model_name(full_model_name: str) -> Tuple[str, str, str]:
-  """Parse full model name into catalog, schema, and model name. Return those parts."""
-  parts = full_model_name.split(".")
-  assert len(parts) == 3, f"Invalid full model name {full_model_name}"  # if this happens, it's a programming error
-  catalog_name = parts[0]
-  schema_name = parts[1]
-  model_name = parts[2]
-  return catalog_name, schema_name, model_name
-
-# Unit test
-assert parse_full_model_name("catalog.schema.model") == ("catalog", "schema", "model")
-try:
-    parse_full_model_name("invalid_model_name")
-except AssertionError as e:
-    assert str(e) == "Invalid full model name invalid_model_name"
-else:
-    assert False, "Expected AssertionError not raised"
-
-# COMMAND ----------
-
-# Check that a model version is registered and ready for scanning
-
-from mlflow.entities.model_registry import ModelVersion
-
-class ModelVersionAlreadyScanned(ModelVersionError):
-    def __init__(self, model_version: ModelVersion):
-        message = f"Model '{model_version.name}' version {model_version.version} has already been submitted for scanning."
-        super().__init__(model_version, message)
-
-class ModelVersionNotRegistered(ModelVersionError):
-    def __init__(self, model_version: ModelVersion):
-        message = f"Model '{model_version.name}' version {model_version.version} is not registered with MLflow."
-        super().__init__(model_version, message)
-
-def check_model_version_is_ready_for_scanning(model_version: ModelVersion) -> None:
-    """Check that the model version is registered and ready for scanning"""
-    # Only allow unscanned models for now. Later we can allow rescanning.
-    scan_status = model_version.tags.get(HL_SCAN_STATUS)
-    if scan_status is not None and scan_status != STATUS_UNSCANNED:
-      raise ModelVersionAlreadyScanned(model_version=model_version)
-
-    if model_version.status != MODEL_VERSION_STATUS_READY:
-      raise ModelVersionNotRegistered(model_version=model_version)
-
-# Tests
-
-def check_model_version_is_ready_for_scanning_happy_path() -> None:
-  # Happy path test
-  test_mv = ModelVersion(
-      name="dummy model version",
-      version="1",
-      creation_timestamp=0,
-      last_updated_timestamp=1)
-  try:
-      check_model_version_is_ready_for_scanning(test_mv)
-  except Exception as e:
-      raise Exception(f"Test of {check_model_version_is_ready_for_scanning} failed: {str(e)}")
-
-def check_model_version_is_ready_for_scanning_bad_registry_status() -> None:
-  # Test bad registry status
-  test_mv = ModelVersion(
-      name="dummy_model_version",
-      version="1",
-      creation_timestamp=0,
-      last_updated_timestamp=1,
-      status="model not ready")  # not a real status, but good enough for testing
-  try:
-      check_model_version_is_ready_for_scanning(test_mv)
-      raise Exception("Test of check_model_version_is_ready_for_scanning failed, expected ModelVersionNotRegistered exception")
-  except ModelVersionNotRegistered as e:
-      pass
-
-def check_model_version_is_ready_for_scanning_bad_scan_status() -> None:
-# Test bad scan status
-  from dataclasses import dataclass
-  from typing import Dict
-
-  @dataclass
-  class DummyModelVersion:
-      name: str
-      version: str
-      tags: Dict[str, str]
-
-  test_mv = DummyModelVersion("dummy_model_version", "1", tags={HL_SCAN_STATUS: STATUS_DONE})
-  try:
-    check_model_version_is_ready_for_scanning(test_mv)
-    raise Exception("Test of check_model_version_is_ready_for_scanning failed, expected ModelVersionAlreadyScanned exception")
-  except ModelVersionAlreadyScanned as e:
-      pass
-
-register_test("check_model_version_is_ready_for_scanning_happy_path", check_model_version_is_ready_for_scanning_happy_path)
-register_test("check_model_version_is_ready_for_scanning_bad_registry_status", check_model_version_is_ready_for_scanning_bad_registry_status)
-register_test("check_model_version_is_ready_for_scanning_bad_scan_status", check_model_version_is_ready_for_scanning_bad_scan_status)
-
-# COMMAND ----------
-
-# We're about to submit the model version to the HL Model Scanner. Tag the model version accordingly.
-
-from datetime import datetime
-from mlflow.entities.model_registry import ModelVersion
-
-def tag_for_scanning(model_version: ModelVersion) -> None:
-  """Set the status and update time tags on the model version"""
-  set_model_version_tag(model_version, HL_SCAN_STATUS, STATUS_PENDING)
-  set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, datetime.now().isoformat())
-
-# Manual test - uncomment and run the code below.
-# def get_test_mv():
-#     return get_model_version("integrations_sandbox.default.sk-learn-random-forest", 1)
-# clear_tags(get_test_mv())
-# tag_for_scanning(get_test_mv())
-# print(get_test_mv().tags)
-# clear_tags(get_test_mv())
-
-# COMMAND ----------
-
-# Get the job parameters: full model name, version number, and HL API key name.
-
 # In production, parameters are passed in.
 # For interactive debugging, set parameters here to whatever you need.
 dev_full_model_name = "integrations_sandbox.default.sk-learn-random-forest"
 dev_model_version_num = "1"
 dev_hl_api_key_name = "hiddenlayer-key"
-
-import json
-from typing import Tuple
-
-# Would be nice to put this in hl_common, but Python scripts can't use dbutils.
-def is_job_run() -> bool:
-    """Return true if this notebook is being run as a job, false otherwise."""
-    try:
-        # Fetch notebook context metadata
-        context = dbutils.entry_point.getDbutils().notebook().getContext().toJson()
-        context_json = json.loads(context)
-        # Check for the job ID in the context. If it's there, then this is a job run.
-        tags = context_json['tags']
-        is_job_run = bool(tags and tags.get('jobId'))
-        return is_job_run
-    except Exception as e:
-        # If context fetching fails, assume this is an interactive run
-        print(f"Exception in is_job_run: {str(e)}")
-        return False
 
 def get_job_params() -> Tuple[str, int, str]:
     """Return full model name, version number (int), and HL API key name"""
@@ -211,6 +72,49 @@ def get_job_params() -> Tuple[str, int, str]:
     except ValueError:
         raise ValueError(f"model_version_num job parameter must be an integer, got '{model_version_num}'")
     return full_model_name, model_version_num, hl_api_key_name
+
+
+# COMMAND ----------
+
+from typing import Tuple
+
+def parse_full_model_name(full_model_name: str) -> Tuple[str, str, str]:
+  """Parse full model name into catalog, schema, and model name. Return those parts."""
+  parts = full_model_name.split(".")
+  assert len(parts) == 3, f"Invalid full model name {full_model_name}"  # if this happens, it's a programming error
+  catalog_name = parts[0]
+  schema_name = parts[1]
+  model_name = parts[2]
+  return catalog_name, schema_name, model_name
+
+# Unit test
+assert parse_full_model_name("catalog.schema.model") == ("catalog", "schema", "model")
+try:
+    parse_full_model_name("invalid_model_name")
+except AssertionError as e:
+    assert str(e) == "Invalid full model name invalid_model_name"
+else:
+    assert False, "Expected AssertionError not raised"
+
+# COMMAND ----------
+
+# We're about to submit the model version to the HL Model Scanner. Tag the model version accordingly.
+
+from datetime import datetime
+from mlflow.entities.model_registry import ModelVersion
+
+def tag_for_scanning(model_version: ModelVersion) -> None:
+  """Set the status and update time tags on the model version"""
+  set_model_version_tag(model_version, HL_SCAN_STATUS, STATUS_PENDING)
+  set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, datetime.now().isoformat())
+
+# Manual test - uncomment and run the code below.
+# def get_test_mv():
+#     return get_model_version("integrations_sandbox.default.sk-learn-random-forest", 1)
+# clear_tags(get_test_mv())
+# tag_for_scanning(get_test_mv())
+# print(get_test_mv().tags)
+# clear_tags(get_test_mv())
 
 # COMMAND ----------
 
@@ -349,6 +253,7 @@ def tag_model_version_with_scan_results(model_version: ModelVersion, scan_result
 # Scan the model version and save results as model registry tags.
 
 import tempfile
+import mlflow
 
 # Get job parameters - the model to scan (actually "model version", we'll be sloppy for the sake of brevity)
 full_model_name, model_version_num, hl_api_key_name = get_job_params()
