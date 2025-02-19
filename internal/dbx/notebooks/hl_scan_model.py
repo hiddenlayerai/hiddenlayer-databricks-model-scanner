@@ -67,27 +67,20 @@ dev_hl_api_key_name = "hiddenlayer-key"
 
 def get_job_params() -> Configuration:
     """Return full model name, version number (int), and HL API key name"""
-    if not is_job_run():
-        print(f"Running in interactive mode. Using dev parameters: " +
-              f"{dev_full_model_name}, {dev_model_version_num}, {dev_hl_api_key_name} .")
-        full_model_name = dev_full_model_name
-        model_version_num = dev_model_version_num
-        hl_api_key_name = dev_hl_api_key_name
-    else:
-        full_model_name = dbutils.widgets.get("full_model_name")
-        assert full_model_name is not None, "full_model_name is a required job parameter"
+    full_model_name = dbutils.widgets.get("full_model_name")
+    assert full_model_name is not None, "full_model_name is a required job parameter"
 
-        model_version_num = dbutils.widgets.get("model_version_num")
-        assert model_version_num is not None, "model_version_num is a required job parameter"
+    model_version_num = dbutils.widgets.get("model_version_num")
+    assert model_version_num is not None, "model_version_num is a required job parameter"
 
-        hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
-        assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
+    hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
+    assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
 
-        hl_api_url = dbutils.widgets.get("hl_api_url")
-        assert hl_api_url is not None, "hl_api_url is a required job parameter"
+    hl_api_url = dbutils.widgets.get("hl_api_url")
+    assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
-        hl_console_url = dbutils.widgets.get("hl_console_url")
-        assert hl_console_url is not None, "hl_console_url is a required job parameter"
+    hl_console_url = dbutils.widgets.get("hl_console_url")
+    assert hl_console_url is not None, "hl_console_url is a required job parameter"
 
     try:
         model_version_num = int(model_version_num)

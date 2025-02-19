@@ -90,27 +90,20 @@ class Configuration:
 
 def get_job_params() -> Configuration:
     """Return catalog, schema, and HL API key name"""
-    if not is_job_run():
-        print(f"Running in interactive mode. Using dev parameters: " +
-              f"{dev_catalog}, {dev_schema}, {dev_hl_api_key_name} .")
-        catalog = dev_catalog
-        schema = dev_schema
-        hl_api_key_name = dev_hl_api_key_name
-    else:
-        catalog = dbutils.widgets.get("catalog")
-        assert catalog is not None, "catalog is a required job parameter"
+    catalog = dbutils.widgets.get("catalog")
+    assert catalog is not None, "catalog is a required job parameter"
 
-        schema = dbutils.widgets.get("schema")
-        assert schema is not None, "schema is a required job parameter"
+    schema = dbutils.widgets.get("schema")
+    assert schema is not None, "schema is a required job parameter"
 
-        hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
-        assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
+    hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
+    assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
 
-        hl_api_url = dbutils.widgets.get("hl_api_url")
-        assert hl_api_url is not None, "hl_api_url is a required job parameter"
+    hl_api_url = dbutils.widgets.get("hl_api_url")
+    assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
-        hl_console_url = dbutils.widgets.get("hl_console_url")
-        assert hl_console_url is not None, "hl_console_url is a required job parameter"
+    hl_console_url = dbutils.widgets.get("hl_console_url")
+    assert hl_console_url is not None, "hl_console_url is a required job parameter"
 
     return Configuration(catalog, schema, hl_api_key_name, hl_api_url, hl_console_url)
 

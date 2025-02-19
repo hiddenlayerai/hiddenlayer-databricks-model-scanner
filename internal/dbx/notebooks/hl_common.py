@@ -56,21 +56,6 @@ def mlflow_client() -> MlflowClient:
     _mlflow_client = MlflowClient()
   return _mlflow_client
 
-def is_job_run() -> bool:
-    """Return true if this notebook is being run as a job, false otherwise."""
-    try:
-        # Fetch notebook context metadata
-        context = dbutils.entry_point.getDbutils().notebook().getContext().toJson()
-        context_json = json.loads(context)
-        # Check for the job ID in the context. If it's there, then this is a job run.
-        tags = context_json['tags']
-        is_job_run = bool(tags and tags.get('jobId'))
-        return is_job_run
-    except Exception as e:
-        # If context fetching fails, assume this is an interactive run
-        print(f"Exception in is_job_run: {str(e)}")
-        return False
-
 def set_model_version_tag(model_version: ModelVersion, key: str, value: str) -> None:
     client = mlflow_client()
     client.set_model_version_tag(
