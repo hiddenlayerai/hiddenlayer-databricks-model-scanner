@@ -47,6 +47,7 @@
 
 from hl_common import *
 
+
 # COMMAND ----------
 
 # Constants
@@ -73,64 +74,6 @@ MAX_ACTIVE_SCAN_JOBS = 10
 
 # COMMAND ----------
 
-from databricks.sdk import WorkspaceClient
-
-_workspace_client = None   # private cache, for use only by this function
-def workspace_client() -> WorkspaceClient:
-  """Get the WorkspaceClient singleton. Create it if necessary.
-  Depends on having Databricks credentials in ~.databrickscfg .
-  See https://docs.databricks.com/en/dev-tools/cli/profiles.html .
-  We'll be supporting oauth as another option in the future."""
-  global _workspace_client
-  if not _workspace_client:
-    _workspace_client = WorkspaceClient()
-  return _workspace_client
-
-# COMMAND ----------
-
-import os
-
-def getcwd() -> str:
-    """Get the current directory (location of this notebook) and return it."""
-    notebook_path = (
-        dbutils.notebook.entry_point.getDbutils()
-        .notebook()
-        .getContext()
-        .notebookPath()
-        .get())
-    cwd = os.path.dirname(notebook_path)    # parent directory
-    return cwd
-
-
-# COMMAND ----------
-
-# Get the job parameters: catalog, schema, and HL API key name.
-
-# In production, parameters are passed in.
-# For interactive debugging, set parameters here to whatever you need.
-dev_catalog = "integrations_sandbox"
-dev_schema = "default"
-dev_hl_api_key_name = "hiddenlayer-key"
-
-import json
-from typing import Tuple
-
-# Would be nice to put this in hl_common, but Python scripts can't use dbutils.
-def is_job_run() -> bool:
-    """Return true if this notebook is being run as a job, false otherwise."""
-    try:
-        # Fetch notebook context metadata
-        context = dbutils.entry_point.getDbutils().notebook().getContext().toJson()
-        context_json = json.loads(context)
-        # Check for the job ID in the context. If it's there, then this is a job run.
-        tags = context_json['tags']
-        is_job_run = bool(tags and tags.get('jobId'))
-        return is_job_run
-    except Exception as e:
-        # If context fetching fails, assume this is an interactive run
-        print(f"Exception in is_job_run: {str(e)}")
-        return False
-
 def get_job_params() -> Tuple[str, str, str]:
     """Return catalog, schema, and HL API key name"""
     if not is_job_run():
@@ -149,6 +92,39 @@ def get_job_params() -> Tuple[str, str, str]:
         hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
         assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
     return catalog, schema, hl_api_key_name
+
+
+# COMMAND ----------
+
+from databricks.sdk import WorkspaceClient
+
+_workspace_client = None   # private cache, for use only by this function
+def workspace_client() -> WorkspaceClient:
+  """Get the WorkspaceClient singleton. Create it if necessary.
+  Depends on having Databricks credentials in ~.databrickscfg .
+  See https://docs.databricks.com/en/dev-tools/cli/profiles.html .
+  We'll be supporting oauth as another option in the future."""
+  global _workspace_client
+  if not _workspace_client:
+    _workspace_client = WorkspaceClient()
+  return _workspace_client
+
+# COMMAND ----------
+
+import os
+from databricks.sdk.runtime import dbutils
+
+def getcwd() -> str:
+    """Get the current directory (location of this notebook) and return it."""
+    notebook_path = (
+        dbutils.notebook.entry_point.getDbutils()
+        .notebook()
+        .getContext()
+        .notebookPath()
+        .get())
+    cwd = os.path.dirname(notebook_path)    # parent directory
+    return cwd
+
 
 # COMMAND ----------
 
@@ -185,7 +161,7 @@ def get_model_versions_by_status(catalog: str, schema: str, statuses: List[str])
     return dikt
 
 # Manual testing
-#print(get_model_versions_by_status("integrations_sandbox", "default", []))
+# print(get_model_versions_by_status("integrations_sandbox", "default", []))
 
 # COMMAND ----------
 
