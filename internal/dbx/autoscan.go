@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -78,14 +79,15 @@ func storeHLCreds(ctx context.Context, client *databricks.WorkspaceClient, confi
 		log.Fatalf("HiddenLayer client ID and secret must be provided")
 	}
 
-	// Create the scope if it doesn't already exist
-	scopeName := secretsScopeName(config.DbxCatalog, config.DbxSchema)
-	err := client.Secrets.CreateScope(ctx, workspace.CreateScope{Scope: scopeName})
-	if err != nil {
-		if !strings.Contains(err.Error(), "already exists") {
-			log.Fatalf("Error creating secret scope %s: %s", scopeName, err.Error())
+	for _, schemaToMonitor := range config.DbxSchemas {
+		// Create the scope if it doesn't already exist
+		scopeName := secretsScopeName(schemaToMonitor.Catalog, schemaToMonitor.Schema)
+		err := client.Secrets.CreateScope(ctx, workspace.CreateScope{Scope: scopeName})
+		if err != nil {
+			if !strings.Contains(err.Error(), "already exists") {
+				log.Fatalf("Error creating secret scope %s: %s", scopeName, err.Error())
+			}
 		}
-	}
 
 	if !config.UsesEnterpriseModelScanner() {
 		// Create the secret. The key is the HL API key name, and the value is "<client ID>:<client secret>".
@@ -193,9 +195,12 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 	const job_name = "hl_find_new_model_versions"
 
 	// Build the parameter list for the notebook job
+	catalogAndSchemasParam, err := json.Marshal(config.DbxSchemas)
+	if err != nil {
+		log.Fatalf("Error marshalling catalog and schemas: %v", err)
+	}
 	params := []jobs.JobParameterDefinition{
-		{Name: "catalog", Default: config.DbxCatalog},
-		{Name: "schema", Default: config.DbxSchema},
+		{Name: "schemas", Default: string(catalogAndSchemasParam)},
 		{Name: "hl_api_key_name", Default: config.HlApiKeyName},
 		{Name: "hl_api_url", Default: config.HlApiUrl},
 		{Name: "hl_console_url", Default: config.HlConsoleUrl},
@@ -206,7 +211,7 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 	createJob := jobs.CreateJob{Name: job_name,
 		Tasks: []jobs.Task{{
 			Description:       "Poll for new model versions and scan them using HiddenLayer",
-			ExistingClusterId: config.DbxClusterID,
+			ExistingClusterId: config.DbxClusterId,
 			TaskKey:           uuid.New().String(),
 			TimeoutSeconds:    0,
 			NotebookTask:      &notebookTask,
@@ -224,6 +229,5 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 	if err != nil {
 		log.Fatalf("Error scheduling model monitoring job: %v", err)
 	}
-
 	fmt.Printf("Scheduled monitoring job with ID: %d\n", job.JobId)
 }

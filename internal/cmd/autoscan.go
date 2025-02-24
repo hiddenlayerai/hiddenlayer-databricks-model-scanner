@@ -65,58 +65,103 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 	return dbxClient
 }
 
+func retrieveSchemaFromCommandLine(dbxClient *databricks.WorkspaceClient) utils.CatalogSchemaConfig {
+	for {
+		var config utils.CatalogSchemaConfig
+		config.Catalog = inputStringValue("Catalog in Databricks Unity Catalog", false)
+		config.Schema = inputStringValue("Schema with models to scan, within the catalog", false)
+
+		if config.Catalog == "" || config.Schema == "" {
+			// intenional user exist
+			return utils.CatalogSchemaConfig{}
+		}
+
+		configOk := confirmSchema(config, dbxClient)
+		if configOk {
+			return config
+		} else {
+			continue
+		}
+	}
+}
+
+func retrieveClusterFromCommandLine(dbxClient *databricks.WorkspaceClient) string {
+	for {
+		clusterId := inputStringValue("Databricks cluster ID", false)
+		if clusterId == "" {
+			// intenional user exist
+			return ""
+		}
+
+		clusterOk := confirmCluster(clusterId, dbxClient)
+		if clusterOk {
+			return clusterId
+		} else {
+			continue
+		}
+	}
+}
+
+func confirmSchema(config utils.CatalogSchemaConfig, dbxClient *databricks.WorkspaceClient) bool {
+	if schemaExists := dbx.SchemaExists(dbxClient, config.Catalog, config.Schema); schemaExists {
+		fmt.Printf("Confirming schema '%s' in catalog '%s' found in Unity Catalog\n", config.Schema, config.Catalog)
+		return true
+	} else {
+		fmt.Printf("Schema %s in catalog %s not found in Unity Catalog. Please try again.\n", config.Schema, config.Catalog)
+		return false
+	}
+}
+
+func confirmCluster(clusterId string, dbxClient *databricks.WorkspaceClient) bool {
+	if clusterExists := dbx.ClusterExists(dbxClient, clusterId); clusterExists {
+		fmt.Printf("Confirming cluster with ID=%s found in Databricks\n", clusterId)
+		return true
+	} else {
+		fmt.Printf("Cluster %s not found in Databricks. Please try again.\n", clusterId)
+		return false
+	}
+}
+
 func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceClient) {
-	schemaExists := false // False until we prove existence of the Unity Catalog schema
-
-	// Get the Unity Catalog catalog/schema from the user. If the catalog/schema doesn't exist, keep asking until it does.
-	for {
-		if config.DbxCatalog == "" || config.DbxSchema == "" {
-			config.DbxCatalog = inputStringValue("Catalog in Databricks Unity Catalog", false, false)
-			config.DbxSchema = inputStringValue("Schema with models to scan, within the catalog", false, false)
-		}
-		schemaExists = dbx.SchemaExists(dbxClient, config.DbxCatalog, config.DbxSchema)
-		if schemaExists {
-			fmt.Printf("Confirming schema '%s' in catalog '%s' found in Unity Catalog\n", config.DbxSchema, config.DbxCatalog)
-			break
-		} else {
-			fmt.Printf("Schema %s in catalog %s not found in Unity Catalog. Please try again.\n", config.DbxSchema, config.DbxCatalog)
-			config.DbxCatalog = ""
-			config.DbxSchema = ""
-		}
+	clusterId := retrieveClusterFromCommandLine(dbxClient)
+	if clusterId == "" {
+		// intentional user exit
+		fmt.Println("No cluster to run monitoring job, exiting")
+		return
 	}
-
-	// Get the Databricks cluster ID from the user. If the cluster doesn't exist, keep asking until it does.
-	for {
-		if config.DbxClusterID == "" {
-			config.DbxClusterID = inputStringValue("ID of Databricks compute cluster to run the integration", false, false)
-		}
-		clusterExists := dbx.ClusterExists(dbxClient, config.DbxClusterID)
-		if clusterExists {
-			fmt.Printf("Confirming cluster with ID=%s found in Databricks\n", config.DbxClusterID)
-			break
-		} else {
-			fmt.Printf("Cluster %s not found in Databricks. Please try again.\n", config.DbxClusterID)
-			config.DbxClusterID = ""
-		}
-	}
-	// Get the Databricks service principal to run the job as.
-	// This is optional, so only prompt if it's not already in the configuration.
-	if config.DbxRunAs == "" {
-		config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
-		// Check that the service principal exists in Databricks. If not, keep asking until it does or a blank value is entered.
-		for config.DbxRunAs != "" {
-			fmt.Println("Checking service principal in Databricks..." + config.DbxRunAs)
-
-			if servicePrincipalExists := dbxapi.ServicePrincipalExists(config.DbxRunAs, config.DbxHost, config.DbxToken); servicePrincipalExists {
-				fmt.Printf("Confirming service principal '%s' found in Databricks\n", config.DbxRunAs)
+	// cluster will have been validated
+	config.DbxClusterId = clusterId
+	if len(config.DbxSchemas) == 0 {
+		for {
+			fmt.Println("Add a new schema to monitor, or press Enter to finish")
+			schema := retrieveSchemaFromCommandLine(dbxClient)
+			if schema == (utils.CatalogSchemaConfig{}) {
+				// intentional user exit
 				break
-			} else {
-				fmt.Printf("Service principal %s not found in Databricks. Please try again.\n", config.DbxRunAs)
-				config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
 			}
+			// schema will have been validated
+			config.DbxSchemas = append(config.DbxSchemas, schema)
 		}
-
+		return
 	}
+
+	var validSchemas []utils.CatalogSchemaConfig
+	for _, schema := range config.DbxSchemas {
+		if !confirmSchema(schema, dbxClient) {
+			// Message indicating what the issue will have been printed already, just ask for updated config
+			replacementConfig := retrieveSchemaFromCommandLine(dbxClient)
+			if replacementConfig == (utils.CatalogSchemaConfig{}) {
+				// user wants to skip this schema, remove it
+				continue
+			} else {
+				// replace existing (bad) schema config with new (validated) one
+				validSchemas = append(validSchemas, replacementConfig)
+			}
+		} else {
+			validSchemas = append(validSchemas, schema)
+		}
+	}
+	config.DbxSchemas = validSchemas
 }
 
 func configHlCreds(config *utils.Config) {

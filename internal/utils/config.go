@@ -11,18 +11,21 @@ import (
 	"github.com/spf13/viper"
 )
 
+type CatalogSchemaConfig struct {
+	Catalog string `mapstructure:"dbx_catalog" json:"catalog,omitempty"`
+	Schema  string `mapstructure:"dbx_schema" json:"schema,omitempty"`
+}
+
 type Config struct {
-	DbxHost        string `mapstructure:"dbx_host"`
-	DbxToken       string `mapstructure:"dbx_token"`
-	DbxCatalog     string `mapstructure:"dbx_catalog"`
-	DbxSchema      string `mapstructure:"dbx_schema"`
-	DbxClusterID   string `mapstructure:"dbx_cluster_id"`
-	DbxRunAs       string `mapstructure:"dbx_run_as"`
-	HlApiKeyName   string `mapstructure:"hl_api_key_name"`
-	HlClientID     string `mapstructure:"hl_client_id"`
-	HlClientSecret string `mapstructure:"hl_client_secret"`
-	HlApiUrl       string `mapstructure:"hl_api_url"`
-	HlConsoleUrl   string `mapstructure:"hl_console_url"`
+	DbxHost        string                `mapstructure:"dbx_host"`
+	DbxToken       string                `mapstructure:"dbx_token"`
+	DbxClusterId   string                `mapstructure:"dbx_cluster_id"`
+	DbxSchemas     []CatalogSchemaConfig `mapstructure:"dbx_schemas"`
+	HlApiKeyName   string                `mapstructure:"hl_api_key_name"`
+	HlClientID     string                `mapstructure:"hl_client_id"`
+	HlClientSecret string                `mapstructure:"hl_client_secret"`
+	HlApiUrl       string                `mapstructure:"hl_api_url"`
+	HlConsoleUrl   string                `mapstructure:"hl_console_url"`
 }
 
 // ConfigNotFound is a custom error type for configuration not found errors

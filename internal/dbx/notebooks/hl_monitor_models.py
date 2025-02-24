@@ -74,27 +74,42 @@ MAX_ACTIVE_SCAN_JOBS = 10
 
 # COMMAND ----------
 
-class Configuration:
+class CatalogSchemaConfiguration:
     """Configuration for this job"""
     catalog: str
     schema: str
+    def __init__(self, catalog, schema):
+        self.catalog = catalog
+        self.schema = schema
+
+class Configuration:
+    """Configuration for this job"""
+    catalogs_and_schemas: List[CatalogSchemaConfiguration]
     hl_api_key_name: str
     hl_api_url: str
     hl_console_url: str
-    def __init__(self, catalog, schema, hl_api_key_name, hl_api_url, hl_console_url):
-        self.catalog = catalog
-        self.schema = schema
+    def __init__(self, catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_console_url):
+        self.catalogs_and_schemas = catalogs_and_schemas
         self.hl_api_key_name = hl_api_key_name
         self.hl_api_url = hl_api_url
         self.hl_console_url = hl_console_url
 
 def get_job_params() -> Configuration:
     """Return catalog, schema, and HL API key name"""
-    catalog = dbutils.widgets.get("catalog")
-    assert catalog is not None, "catalog is a required job parameter"
+    catalogs_and_schemas_json = dbutils.widgets.get("schemas")
+    assert catalogs_and_schemas_json is not None, "schemas is a required job parameter"
 
-    schema = dbutils.widgets.get("schema")
-    assert schema is not None, "schema is a required job parameter"
+    # deserialize the json string
+    catalogs_and_schemas_list = json.loads(catalogs_and_schemas_json)
+    assert isinstance(catalogs_and_schemas_list, list), "schemas must be a json list"
+
+    catalogs_and_schemas = []
+    for item in catalogs_and_schemas_list:
+        catalog = item.get("catalog")
+        assert catalog is not None, "catalog is a required job parameter"
+        schema = item.get("schema")
+        assert schema is not None, "schema is a required job parameter"
+        catalogs_and_schemas.append(CatalogSchemaConfiguration(catalog, schema))
 
     hl_api_url = dbutils.widgets.get("hl_api_url")
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
@@ -110,7 +125,7 @@ def get_job_params() -> Configuration:
         hl_console_url = dbutils.widgets.get("hl_console_url")
         assert hl_console_url is not None, "hl_console_url is a required job parameter"
 
-    return Configuration(catalog, schema, hl_api_key_name, hl_api_url, hl_console_url)
+    return Configuration(catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_console_url)
 
 
 # COMMAND ----------
@@ -405,27 +420,28 @@ def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minu
 # Poll for new model versions and scan as needed
 
 config = get_job_params()
-mv_dict: Dict[str, List[ModelVersion]] = get_model_versions_by_status(config.catalog, config.schema, [STATUS_NONE, STATUS_PENDING])
+for catalog_schema in config.catalogs_and_schemas:
+    mv_dict: Dict[str, List[ModelVersion]] = get_model_versions_by_status(catalog_schema.catalog, catalog_schema.schema, [STATUS_NONE, STATUS_PENDING])
 
-# Do one-time init if needed
-if not is_init_done():
-    init(config.catalog, config.schema)
+    # Do one-time init if needed
+    if not is_init_done():
+        init(catalog_schema.catalog, catalog_schema.schema)
 
-# If there are no new model versions (untagged so STATUS_NONE), then we're done.
-num_new_models = len(mv_dict[STATUS_NONE])
-if num_new_models == 0:
-    dbutils.notebook.exit("There are no new model versions to scan.")
+    # If there are no new model versions (untagged so STATUS_NONE), then we're done.
+    num_new_models = len(mv_dict[STATUS_NONE])
+    if num_new_models == 0:
+        dbutils.notebook.exit("There are no new model versions to scan.")
 
-# Light up scan jobs, up to the limit.
-# Note: our client-side scan status goes directly from pending to done. There is an intermediate "running" state
-# on the server side, but that's not exposed through the Python SDK, which we call synchronously. 
-num_active_jobs = len(mv_dict[STATUS_PENDING])
-max_new_jobs = max(MAX_ACTIVE_SCAN_JOBS - num_active_jobs, 0)
-num_new_jobs = min(max_new_jobs, num_new_models)
-for i in range(num_new_jobs):
-    mv = mv_dict[STATUS_NONE][i]
-    run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
-    print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")
+    # Light up scan jobs, up to the limit.
+    # Note: our client-side scan status goes directly from pending to done. There is an intermediate "running" state
+    # on the server side, but that's not exposed through the Python SDK, which we call synchronously. 
+    num_active_jobs = len(mv_dict[STATUS_PENDING])
+    max_new_jobs = max(MAX_ACTIVE_SCAN_JOBS - num_active_jobs, 0)
+    num_new_jobs = min(max_new_jobs, num_new_models)
+    for i in range(num_new_jobs):
+        mv = mv_dict[STATUS_NONE][i]
+        run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+        print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")
 
-# Mark timed-out jobs as failed.
-handle_job_timeouts(mv_dict[STATUS_PENDING], HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+    # Mark timed-out jobs as failed.
+    handle_job_timeouts(mv_dict[STATUS_PENDING], HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
