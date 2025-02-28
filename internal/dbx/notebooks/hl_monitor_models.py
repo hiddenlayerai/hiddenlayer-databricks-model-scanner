@@ -102,8 +102,10 @@ def get_job_params() -> Configuration:
     hl_api_url = dbutils.widgets.get("hl_api_url")
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
-    hl_console_url = dbutils.widgets.get("hl_console_url")
-    assert hl_console_url is not None, "hl_console_url is a required job parameter"
+    widgets_to_values = dbutils.widgets.getAll()
+    hl_console_url = None
+    if "hl_console_url" in widgets_to_values.keys():
+        hl_console_url = widgets_to_values["hl_console_url"]
 
     return Configuration(catalog, schema, hl_api_key_name, hl_api_url, hl_console_url)
 
@@ -323,7 +325,10 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_conso
                 "model_version_num": str(mv.version),
                 "hl_api_key_name": hl_api_key_name,
                 "hl_api_url": hl_api_url,
-                "hl_console_url": hl_console_url}
+                }
+    # optional parameters
+    if hl_console_url:
+        parameters["hl_console_url"] = hl_console_url
     run_id = run_notebook(job_name, str(notebook_path), cluster_id, parameters, timeout_minutes=timeout_minutes)
     # For debugging purposes, save the run_id as a temporary tag
     set_model_version_tag(mv, HL_SCAN_RUN_ID, run_id)
