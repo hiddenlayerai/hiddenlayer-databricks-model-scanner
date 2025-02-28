@@ -95,6 +95,9 @@ def get_job_params() -> Configuration:
     hl_api_url = widgets_to_values["hl_api_url"]
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
+    hl_console_url = None
+    hl_api_key_name = None
+
     if not is_enterprise_scanner(hl_api_url):
         hl_api_key_name = widgets_to_values["hl_api_key_name"]
         assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
