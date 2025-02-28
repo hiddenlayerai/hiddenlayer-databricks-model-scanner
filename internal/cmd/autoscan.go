@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"syscall"
@@ -100,25 +101,36 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 }
 
 func configHlCreds(config *utils.Config) {
-	if config.HlApiKeyName == "" || config.HlClientID == "" || config.HlClientSecret == "" {
+	if config.HlApiUrl == "" {
+		config.HlApiUrl = inputStringValue("HiddenLayer API URL (default: https://api.us.hiddenlayer.ai)", false, "https://api.us.hiddenlayer.ai")
+	}
+	hlApi, err := url.Parse(config.HlApiUrl)
+	if err != nil {
+		log.Fatalf("Error parsing HiddenLayer API URL: %v", err)
+	}
+	// determine if user is configuring for an enterprise scanner i.e. not a hiddenlayer.ai API url
+	enterpriseScanner := !strings.HasSuffix(hlApi.Hostname(), ".hiddenlayer.ai")
+
+	// Only need HL Api keys if using a Saas product
+	if (config.HlApiKeyName == "" || config.HlClientID == "" || config.HlClientSecret == "") && !enterpriseScanner {
 		config.HlApiKeyName = inputStringValue("HiddenLayer API key name", false)
 		config.HlClientID = inputStringValue("HiddenLayer client ID", false)
 		config.HlClientSecret = inputStringValue("HiddenLayer client secret", true)
 	}
 
-	if config.HlApiUrl == "" {
-		config.HlApiUrl = inputStringValue("HiddenLayer API URL (default: https://api.us.hiddenlayer.ai)", false, "https://api.us.hiddenlayer.ai")
-	}
-	if config.HlConsoleUrl == "" {
-		config.HlConsoleUrl = inputStringValue("HiddenLayer Console URL (default: https://console.us.hiddenlayer.ai)", false, "https://console.us.hiddenlayer.ai")
+	// console url only needed if using a Saas product
+	if config.HlConsoleUrl == "" && !enterpriseScanner {
+		config.HlConsoleUrl = inputStringValue("HiddenLayer Console URL (default: https://console.us.hiddenlayer.ai", false, "https://console.us.hiddenlayer.ai")
 	}
 
-	// Validate the HiddenLayer credentials by authenticating to the HiddenLayer API
-	_, err := hl.Auth(config.HlClientID, config.HlClientSecret)
-	if err == nil {
-		fmt.Println("Successfully authenticated to HiddenLayer")
-	} else {
-		log.Fatalf("Error authenticating to HiddenLayer: %v", err)
+	// Validate the HiddenLayer credentials by authenticating to the HiddenLayer API (if Saas)
+	if !enterpriseScanner {
+		_, err := hl.Auth(config.HlClientID, config.HlClientSecret)
+		if err == nil {
+			fmt.Println("Successfully authenticated to HiddenLayer")
+		} else {
+			log.Fatalf("Error authenticating to HiddenLayer: %v", err)
+		}
 	}
 }
 

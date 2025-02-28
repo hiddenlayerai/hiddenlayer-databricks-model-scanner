@@ -44,6 +44,11 @@ class ModelVersionNotFound(ModelVersionError):
         message = f"Could not find model version '{model_version.version}' for model '{model_version.name}'"
         super().__init__(model_version, message)
 
+# Functions
+
+def is_enterprise_scanner(hl_api_url: str) -> bool:
+    """Return true if the HL API URL points to an enterprise scanner, false otherwise."""
+    return not hl_api_url.endswith(".hiddenlayer.ai")
 
 # Good for performance to create the MlflowClient just once.
 # Avoid using a global variable, which makes testing harder.

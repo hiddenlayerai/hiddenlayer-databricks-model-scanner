@@ -43,8 +43,11 @@ func Autoscan(ctx context.Context, config *utils.Config) {
 		log.Fatalf("Unable to authenticate to Databricks, got this error: %s", err.Error())
 	}
 
-	// Store the HiddenLayer credentials in the Databricks secret store for use by the Python notebooks
-	storeHLCreds(ctx, dbx_client, config)
+	if !config.UsesEnterpriseModelScanner() {
+		// Store the HiddenLayer credentials in the Databricks secret store for use by the Python notebooks
+		// Only needed when using Saas
+		storeHLCreds(ctx, dbx_client, config)
+	}
 
 	// Upload auto-scan Python files to the Databricks workspace
 	uploadPythonFiles(dbx_client)
@@ -66,9 +69,13 @@ func secretsScopeName(catalog string, schema string) string {
 // Use a secrets scope named "hl_<catalog_name>_<schema_name>" for uniqueness across Unity Catalog schemas.
 func storeHLCreds(ctx context.Context, client *databricks.WorkspaceClient, config *utils.Config) {
 	// Sanity-check the configuration
-	if config.DbxCatalog == "" || config.DbxSchema == "" || config.HlApiKeyName == "" || config.HlClientID == "" ||
-		config.HlClientSecret == "" {
-		log.Fatalf("Databricks catalog, schema, and HiddenLayer credentials must all be provided")
+
+	if config.DbxCatalog == "" || config.DbxSchema == "" {
+		log.Fatalf("Databricks catalog, schema must all be provided")
+	}
+	// if using the Saas model scanner, ensure HL credentials are provided
+	if !config.UsesEnterpriseModelScanner() && (config.HlClientID == "" || config.HlClientSecret == "") {
+		log.Fatalf("HiddenLayer client ID and secret must be provided")
 	}
 
 	// Create the scope if it doesn't already exist
@@ -80,32 +87,34 @@ func storeHLCreds(ctx context.Context, client *databricks.WorkspaceClient, confi
 		}
 	}
 
-	// Create the secret. The key is the HL API key name, and the value is "<client ID>:<client secret>".
-	// This convention must match between the Go and Python code.
-	err = client.Secrets.PutSecret(ctx, workspace.PutSecret{
-		Scope:       scopeName,
-		Key:         config.HlApiKeyName,
-		StringValue: fmt.Sprintf("%s:%s", config.HlClientID, config.HlClientSecret),
-	})
-	if err != nil {
-		if !strings.Contains(err.Error(), "already exists") {
-			log.Fatalf("Error creating secret %s in scope %s: %s", config.HlApiKeyName, scopeName, err.Error())
+	if !config.UsesEnterpriseModelScanner() {
+		// Create the secret. The key is the HL API key name, and the value is "<client ID>:<client secret>".
+		// This convention must match between the Go and Python code.
+		err = client.Secrets.PutSecret(ctx, workspace.PutSecret{
+			Scope:       scopeName,
+			Key:         config.HlApiKeyName,
+			StringValue: fmt.Sprintf("%s:%s", config.HlClientID, config.HlClientSecret),
+		})
+		if err != nil {
+			if !strings.Contains(err.Error(), "already exists") {
+				log.Fatalf("Error creating secret %s in scope %s: %s", config.HlApiKeyName, scopeName, err.Error())
+			}
 		}
-	}
 
-	// Double-check that the secret was created successfully
-	secret, err := client.Secrets.GetSecret(ctx, workspace.GetSecretRequest{Key: config.HlApiKeyName, Scope: scopeName})
-	if err != nil {
-		log.Fatalf("Error fetching secret %s from scope %s: %s", config.HlApiKeyName, scopeName, err.Error())
-	}
-	decodedBytes, err := base64.StdEncoding.DecodeString(secret.Value)
-	if err != nil {
-		log.Fatalf("failed to decode secret: %s", err.Error())
-	}
-	decodedSecret := string(decodedBytes)
-	if decodedSecret != fmt.Sprintf("%s:%s", config.HlClientID, config.HlClientSecret) {
-		// For security, don't echo the secret in the error message
-		log.Fatalf("Secret %s in scope %s has the wrong value", config.HlApiKeyName, scopeName)
+		// Double-check that the secret was created successfully
+		secret, err := client.Secrets.GetSecret(ctx, workspace.GetSecretRequest{Key: config.HlApiKeyName, Scope: scopeName})
+		if err != nil {
+			log.Fatalf("Error fetching secret %s from scope %s: %s", config.HlApiKeyName, scopeName, err.Error())
+		}
+		decodedBytes, err := base64.StdEncoding.DecodeString(secret.Value)
+		if err != nil {
+			log.Fatalf("failed to decode secret: %s", err.Error())
+		}
+		decodedSecret := string(decodedBytes)
+		if decodedSecret != fmt.Sprintf("%s:%s", config.HlClientID, config.HlClientSecret) {
+			// For security, don't echo the secret in the error message
+			log.Fatalf("Secret %s in scope %s has the wrong value", config.HlApiKeyName, scopeName)
+		}
 	}
 }
 

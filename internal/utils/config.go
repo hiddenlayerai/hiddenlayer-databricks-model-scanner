@@ -2,8 +2,11 @@ package utils
 
 import (
 	"fmt"
+	"log"
+	"net/url"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -54,6 +57,15 @@ func InitConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func (c *Config) UsesEnterpriseModelScanner() bool {
+	// determine if user is configuring for an enterprise scanner i.e. not a hiddenlayer.ai API url
+	hlApi, err := url.Parse(c.HlApiUrl)
+	if err != nil {
+		log.Fatalf("Error parsing HiddenLayer API URL: %v", err)
+	}
+	return !strings.HasSuffix(hlApi.Hostname(), ".hiddenlayer.ai")
 }
 
 // For testing only. Requires switching the file to the main package.

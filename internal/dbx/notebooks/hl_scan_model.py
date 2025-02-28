@@ -92,15 +92,16 @@ def get_job_params() -> Configuration:
         model_version_num is not None
     ), "model_version_num is a required job parameter"
 
-    hl_api_key_name = widgets_to_values["hl_api_key_name"]
-    assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
-
     hl_api_url = widgets_to_values["hl_api_url"]
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
-    hl_console_url = None
-    if "hl_console_url" in widgets_to_values.keys():
-        hl_console_url = widgets_to_values["hl_console_url"]
+    if not is_enterprise_scanner(hl_api_url):
+        hl_api_key_name = widgets_to_values["hl_api_key_name"]
+        assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
+
+        hl_console_url = None
+        if "hl_console_url" in widgets_to_values.keys():
+            hl_console_url = widgets_to_values["hl_console_url"]
 
     try:
         model_version_num = int(model_version_num)
@@ -322,7 +323,11 @@ try:
             local_path = mlflow.artifacts.download_artifacts(artifact_uri=source, dst_path=temp_dir)
         #local_path="/tmp/hl_debug"     # for debugging
         catalog, schema, _ = parse_full_model_name(config.full_model_name)
-        hl_creds = get_hl_api_creds(catalog, schema, config.hl_api_key_name)
+        if is_enterprise_scanner(config.hl_api_url):
+            # enterprise scanner does not require creds
+            hl_creds = HLCredentials(client_id="", client_secret="")
+        else:
+            hl_creds = get_hl_api_creds(catalog, schema, config.hl_api_key_name)
         hl_client = hl_auth(hl_creds, config.hl_api_url)
         print(f"Scanning model artifacts in {local_path}")
         # For testing, bump the version number to simulate a new version: or delete the model card in the console UI

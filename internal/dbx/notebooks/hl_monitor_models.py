@@ -96,16 +96,19 @@ def get_job_params() -> Configuration:
     schema = dbutils.widgets.get("schema")
     assert schema is not None, "schema is a required job parameter"
 
-    hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
-    assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
-
     hl_api_url = dbutils.widgets.get("hl_api_url")
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
-    widgets_to_values = dbutils.widgets.getAll()
     hl_console_url = None
-    if "hl_console_url" in widgets_to_values.keys():
-        hl_console_url = widgets_to_values["hl_console_url"]
+    hl_api_key_name = None
+
+    # Saas scanner, API credentials should be encoded in a key and a console url should be provided
+    if not is_enterprise_scanner(hl_api_url):
+        hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
+        assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
+
+        hl_console_url = dbutils.widgets.get("hl_console_url")
+        assert hl_console_url is not None, "hl_console_url is a required job parameter"
 
     return Configuration(catalog, schema, hl_api_key_name, hl_api_url, hl_console_url)
 
@@ -323,12 +326,13 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_conso
     # For a ModelVersion in Unity Catalog, the name is the full name, including catalog and schema
     parameters={"full_model_name": mv.name,
                 "model_version_num": str(mv.version),
-                "hl_api_key_name": hl_api_key_name,
                 "hl_api_url": hl_api_url,
                 }
-    # optional parameters
+    # optional parameters only needed by Saas scanner workflows
     if hl_console_url:
         parameters["hl_console_url"] = hl_console_url
+    if hl_api_key_name:
+        parameters["hl_api_key_name"] = hl_api
     run_id = run_notebook(job_name, str(notebook_path), cluster_id, parameters, timeout_minutes=timeout_minutes)
     # For debugging purposes, save the run_id as a temporary tag
     set_model_version_tag(mv, HL_SCAN_RUN_ID, run_id)
