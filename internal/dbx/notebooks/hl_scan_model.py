@@ -37,7 +37,7 @@ from IPython.display import display, Javascript
 
 if not importlib.util.find_spec("hiddenlayer"):
     # same as "%pip install" but we can't do that within an if statement
-    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.2')
+    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.3')
     # same as "%restart_python" but we can't do that within an if statement
     display(Javascript('Jupyter.notebook.kernel.restart()'))
 
