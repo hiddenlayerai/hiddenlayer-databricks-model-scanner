@@ -2,7 +2,7 @@
 
 from databricks.sdk.runtime import dbutils
 import json
-from mlflow import MlflowClient
+from mlflow import MlflowClient, set_registry_uri
 from mlflow.entities.model_registry import ModelVersion
 from mlflow.exceptions import RestException
 from typing import List, Tuple
@@ -44,6 +44,11 @@ class ModelVersionNotFound(ModelVersionError):
         message = f"Could not find model version '{model_version.version}' for model '{model_version.name}'"
         super().__init__(model_version, message)
 
+# Functions
+
+def is_enterprise_scanner(hl_api_url: str) -> bool:
+    """Return true if the HL API URL points to an enterprise scanner, false otherwise."""
+    return not hl_api_url.endswith(".hiddenlayer.ai")
 
 # Good for performance to create the MlflowClient just once.
 # Avoid using a global variable, which makes testing harder.
@@ -53,23 +58,9 @@ def mlflow_client() -> MlflowClient:
   """Get the MlflowClient singleton. Create it if necessary."""
   global _mlflow_client
   if not _mlflow_client:
+    set_registry_uri("databricks-uc")
     _mlflow_client = MlflowClient()
   return _mlflow_client
-
-def is_job_run() -> bool:
-    """Return true if this notebook is being run as a job, false otherwise."""
-    try:
-        # Fetch notebook context metadata
-        context = dbutils.entry_point.getDbutils().notebook().getContext().toJson()
-        context_json = json.loads(context)
-        # Check for the job ID in the context. If it's there, then this is a job run.
-        tags = context_json['tags']
-        is_job_run = bool(tags and tags.get('jobId'))
-        return is_job_run
-    except Exception as e:
-        # If context fetching fails, assume this is an interactive run
-        print(f"Exception in is_job_run: {str(e)}")
-        return False
 
 def set_model_version_tag(model_version: ModelVersion, key: str, value: str) -> None:
     client = mlflow_client()

@@ -74,24 +74,43 @@ MAX_ACTIVE_SCAN_JOBS = 10
 
 # COMMAND ----------
 
-def get_job_params() -> Tuple[str, str, str]:
+class Configuration:
+    """Configuration for this job"""
+    catalog: str
+    schema: str
+    hl_api_key_name: str
+    hl_api_url: str
+    hl_console_url: str
+    def __init__(self, catalog, schema, hl_api_key_name, hl_api_url, hl_console_url):
+        self.catalog = catalog
+        self.schema = schema
+        self.hl_api_key_name = hl_api_key_name
+        self.hl_api_url = hl_api_url
+        self.hl_console_url = hl_console_url
+
+def get_job_params() -> Configuration:
     """Return catalog, schema, and HL API key name"""
-    if not is_job_run():
-        print(f"Running in interactive mode. Using dev parameters: " +
-              f"{dev_catalog}, {dev_schema}, {dev_hl_api_key_name} .")
-        catalog = dev_catalog
-        schema = dev_schema
-        hl_api_key_name = dev_hl_api_key_name
-    else:
-        catalog = dbutils.widgets.get("catalog")
-        assert catalog is not None, "catalog is a required job parameter"
+    catalog = dbutils.widgets.get("catalog")
+    assert catalog is not None, "catalog is a required job parameter"
 
-        schema = dbutils.widgets.get("schema")
-        assert schema is not None, "schema is a required job parameter"
+    schema = dbutils.widgets.get("schema")
+    assert schema is not None, "schema is a required job parameter"
 
+    hl_api_url = dbutils.widgets.get("hl_api_url")
+    assert hl_api_url is not None, "hl_api_url is a required job parameter"
+
+    hl_console_url = None
+    hl_api_key_name = None
+
+    # Saas scanner, API credentials should be encoded in a key and a console url should be provided
+    if not is_enterprise_scanner(hl_api_url):
         hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
         assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
-    return catalog, schema, hl_api_key_name
+
+        hl_console_url = dbutils.widgets.get("hl_console_url")
+        assert hl_console_url is not None, "hl_console_url is a required job parameter"
+
+    return Configuration(catalog, schema, hl_api_key_name, hl_api_url, hl_console_url)
 
 
 # COMMAND ----------
@@ -299,7 +318,7 @@ from datetime import datetime
 from mlflow.entities.model_registry import ModelVersion
 from pathlib import Path
 
-def scan_model(mv: ModelVersion, hl_api_key_name: str, timeout_minutes: int) -> int:
+def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_console_url: str, timeout_minutes: int) -> int:
     """Run a scan job on a model version. Don't wait for it to finish. Return the run_id."""
     job_name = f"hl_scan_{mv.name}.{mv.version}"
     notebook_path = Path(getcwd()) / HL_SCAN_NOTEBOOK
@@ -307,7 +326,13 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, timeout_minutes: int) -> 
     # For a ModelVersion in Unity Catalog, the name is the full name, including catalog and schema
     parameters={"full_model_name": mv.name,
                 "model_version_num": str(mv.version),
-                "hl_api_key_name": hl_api_key_name}
+                "hl_api_url": hl_api_url,
+                }
+    # optional parameters only needed by Saas scanner workflows
+    if hl_console_url:
+        parameters["hl_console_url"] = hl_console_url
+    if hl_api_key_name:
+        parameters["hl_api_key_name"] = hl_api
     run_id = run_notebook(job_name, str(notebook_path), cluster_id, parameters, timeout_minutes=timeout_minutes)
     # For debugging purposes, save the run_id as a temporary tag
     set_model_version_tag(mv, HL_SCAN_RUN_ID, run_id)
@@ -379,12 +404,12 @@ def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minu
 # *** MAIN CELL THAT DRIVES EVERYTHING ***
 # Poll for new model versions and scan as needed
 
-catalog, schema, hl_api_key_name = get_job_params()
-mv_dict: Dict[str, List[ModelVersion]] = get_model_versions_by_status(catalog, schema, [STATUS_NONE, STATUS_PENDING])
+config = get_job_params()
+mv_dict: Dict[str, List[ModelVersion]] = get_model_versions_by_status(config.catalog, config.schema, [STATUS_NONE, STATUS_PENDING])
 
 # Do one-time init if needed
 if not is_init_done():
-    init(catalog, schema)
+    init(config.catalog, config.schema)
 
 # If there are no new model versions (untagged so STATUS_NONE), then we're done.
 num_new_models = len(mv_dict[STATUS_NONE])
@@ -399,7 +424,7 @@ max_new_jobs = max(MAX_ACTIVE_SCAN_JOBS - num_active_jobs, 0)
 num_new_jobs = min(max_new_jobs, num_new_models)
 for i in range(num_new_jobs):
     mv = mv_dict[STATUS_NONE][i]
-    run_id = scan_model(mv, hl_api_key_name, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+    run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
     print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")
 
 # Mark timed-out jobs as failed.

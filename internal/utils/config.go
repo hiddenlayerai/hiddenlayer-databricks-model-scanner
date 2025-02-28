@@ -2,9 +2,13 @@ package utils
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
+	"log"
+	"net/url"
 	"os"
 	"runtime"
+	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -16,6 +20,8 @@ type Config struct {
 	HlApiKeyName   string `mapstructure:"hl_api_key_name"`
 	HlClientID     string `mapstructure:"hl_client_id"`
 	HlClientSecret string `mapstructure:"hl_client_secret"`
+	HlApiUrl       string `mapstructure:"hl_api_url"`
+	HlConsoleUrl   string `mapstructure:"hl_console_url"`
 }
 
 // ConfigNotFound is a custom error type for configuration not found errors
@@ -51,6 +57,15 @@ func InitConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func (c *Config) UsesEnterpriseModelScanner() bool {
+	// determine if user is configuring for an enterprise scanner i.e. not a hiddenlayer.ai API url
+	hlApi, err := url.Parse(c.HlApiUrl)
+	if err != nil {
+		log.Fatalf("Error parsing HiddenLayer API URL: %v", err)
+	}
+	return !strings.HasSuffix(hlApi.Hostname(), ".hiddenlayer.ai")
 }
 
 // For testing only. Requires switching the file to the main package.

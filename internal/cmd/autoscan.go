@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"net/url"
+	"os"
+	"strings"
+	"syscall"
+
 	"github.com/databricks/databricks-sdk-go"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbx"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/hl"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/utils"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
-	"log"
-	"os"
-	"strings"
-	"syscall"
 )
 
 var autoscanCmd = &cobra.Command{
@@ -99,24 +101,42 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 }
 
 func configHlCreds(config *utils.Config) {
-	if config.HlApiKeyName == "" || config.HlClientID == "" || config.HlClientSecret == "" {
+	if config.HlApiUrl == "" {
+		config.HlApiUrl = inputStringValue("HiddenLayer API URL (default: https://api.us.hiddenlayer.ai)", false, "https://api.us.hiddenlayer.ai")
+	}
+	hlApi, err := url.Parse(config.HlApiUrl)
+	if err != nil {
+		log.Fatalf("Error parsing HiddenLayer API URL: %v", err)
+	}
+	// determine if user is configuring for an enterprise scanner i.e. not a hiddenlayer.ai API url
+	enterpriseScanner := !strings.HasSuffix(hlApi.Hostname(), ".hiddenlayer.ai")
+
+	// Only need HL Api keys if using a Saas product
+	if (config.HlApiKeyName == "" || config.HlClientID == "" || config.HlClientSecret == "") && !enterpriseScanner {
 		config.HlApiKeyName = inputStringValue("HiddenLayer API key name", false)
 		config.HlClientID = inputStringValue("HiddenLayer client ID", false)
 		config.HlClientSecret = inputStringValue("HiddenLayer client secret", true)
 	}
 
-	// Validate the HiddenLayer credentials by authenticating to the HiddenLayer API
-	_, err := hl.Auth(config.HlClientID, config.HlClientSecret)
-	if err == nil {
-		fmt.Println("Successfully authenticated to HiddenLayer")
-	} else {
-		log.Fatalf("Error authenticating to HiddenLayer: %v", err)
+	// console url only needed if using a Saas product
+	if config.HlConsoleUrl == "" && !enterpriseScanner {
+		config.HlConsoleUrl = inputStringValue("HiddenLayer Console URL (default: https://console.us.hiddenlayer.ai", false, "https://console.us.hiddenlayer.ai")
+	}
+
+	// Validate the HiddenLayer credentials by authenticating to the HiddenLayer API (if Saas)
+	if !enterpriseScanner {
+		_, err := hl.Auth(config.HlClientID, config.HlClientSecret)
+		if err == nil {
+			fmt.Println("Successfully authenticated to HiddenLayer")
+		} else {
+			log.Fatalf("Error authenticating to HiddenLayer: %v", err)
+		}
 	}
 }
 
 // inputStringValue prompts the user to enter a string value for a given name.
 // If hideIt is true, the input will not be echoed to the terminal.
-func inputStringValue(name string, hideIt bool) string {
+func inputStringValue(name string, hideIt bool, defaultValue ...string) string {
 	var value string
 	for {
 		var prompt string
@@ -125,7 +145,7 @@ func inputStringValue(name string, hideIt bool) string {
 		} else {
 			prompt = fmt.Sprintf("Enter %s: ", name)
 		}
-		fmt.Printf(prompt)
+		fmt.Print(prompt)
 		var err error
 		if hideIt {
 			value, err = readPassword()
@@ -133,6 +153,10 @@ func inputStringValue(name string, hideIt bool) string {
 			_, err = fmt.Scanln(&value)
 		}
 		if err != nil {
+			if err.Error() == "unexpected newline" && len(defaultValue) > 0 {
+				return defaultValue[0]
+			}
+
 			fmt.Printf("Error reading %s: %v. Please try again.\n", name, err)
 			continue
 		}
