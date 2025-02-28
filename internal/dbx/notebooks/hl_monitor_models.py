@@ -427,10 +427,7 @@ for catalog_schema in config.catalogs_and_schemas:
     if not is_init_done():
         init(catalog_schema.catalog, catalog_schema.schema)
 
-    # If there are no new model versions (untagged so STATUS_NONE), then we're done.
     num_new_models = len(mv_dict[STATUS_NONE])
-    if num_new_models == 0:
-        dbutils.notebook.exit("There are no new model versions to scan.")
 
     # Light up scan jobs, up to the limit.
     # Note: our client-side scan status goes directly from pending to done. There is an intermediate "running" state
