@@ -2,7 +2,7 @@
 
 from databricks.sdk.runtime import dbutils
 import json
-from mlflow import MlflowClient
+from mlflow import MlflowClient, set_registry_uri
 from mlflow.entities.model_registry import ModelVersion
 from mlflow.exceptions import RestException
 from typing import List, Tuple
@@ -53,6 +53,7 @@ def mlflow_client() -> MlflowClient:
   """Get the MlflowClient singleton. Create it if necessary."""
   global _mlflow_client
   if not _mlflow_client:
+    set_registry_uri("databricks-uc")
     _mlflow_client = MlflowClient()
   return _mlflow_client
 

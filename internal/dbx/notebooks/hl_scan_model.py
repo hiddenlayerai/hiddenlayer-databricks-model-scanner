@@ -1,4 +1,8 @@
 # Databricks notebook source
+# MAGIC %restart_python
+
+# COMMAND ----------
+
 # This notebook scans a model version for risks, using the HiddenLayer (HL) SaaS Model Scanner.
 # Record the outcome as tags in the MLflow Model Registry that is integrated into Unity Catalog.
 # Python version: 3.11+
@@ -47,17 +51,27 @@ from hl_common import *
 
 class Configuration:
     """Configuration for this job"""
+
     full_model_name: str
     model_version_num: str
     hl_api_key_name: str
     hl_api_url: str
     hl_console_url: str
-    def __init__(self, full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_console_url):
+
+    def __init__(
+        self,
+        full_model_name,
+        model_version_num,
+        hl_api_key_name,
+        hl_api_url,
+        hl_console_url,
+    ):
         self.full_model_name = full_model_name
         self.model_version_num = model_version_num
         self.hl_api_key_name = hl_api_key_name
         self.hl_api_url = hl_api_url
         self.hl_console_url = hl_console_url
+
 
 # In production, parameters are passed in.
 # For interactive debugging, set parameters here to whatever you need.
@@ -65,30 +79,39 @@ dev_full_model_name = "integrations_sandbox.default.sk-learn-random-forest"
 dev_model_version_num = "1"
 dev_hl_api_key_name = "hiddenlayer-key"
 
+
 def get_job_params() -> Configuration:
     """Return full model name, version number (int), and HL API key name"""
-    full_model_name = dbutils.widgets.get("full_model_name")
+    widgets_to_values = dbutils.widgets.getAll()
+
+    full_model_name = widgets_to_values["full_model_name"]
     assert full_model_name is not None, "full_model_name is a required job parameter"
 
-    model_version_num = dbutils.widgets.get("model_version_num")
-    assert model_version_num is not None, "model_version_num is a required job parameter"
+    model_version_num = widgets_to_values["model_version_num"]
+    assert (
+        model_version_num is not None
+    ), "model_version_num is a required job parameter"
 
-    hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
+    hl_api_key_name = widgets_to_values["hl_api_key_name"]
     assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
 
-    hl_api_url = dbutils.widgets.get("hl_api_url")
+    hl_api_url = widgets_to_values["hl_api_url"]
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
-    hl_console_url = dbutils.widgets.get("hl_console_url")
-    assert hl_console_url is not None, "hl_console_url is a required job parameter"
+    hl_console_url = None
+    if "hl_console_url" in widgets_to_values.keys():
+        hl_console_url = widgets_to_values["hl_console_url"]
 
     try:
         model_version_num = int(model_version_num)
     except ValueError:
-        raise ValueError(f"model_version_num job parameter must be an integer, got '{model_version_num}'")
+        raise ValueError(
+            f"model_version_num job parameter must be an integer, got '{model_version_num}'"
+        )
 
-    return Configuration(full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_console_url)
-
+    return Configuration(
+        full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_console_url
+    )
 
 # COMMAND ----------
 
@@ -259,8 +282,9 @@ def tag_model_version_with_scan_results(model_version: ModelVersion, scan_result
         set_model_version_tag(model_version, HL_SCAN_THREAT_LEVEL, scan_results.severity)
         set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, scan_results.end_time)
         set_model_version_tag(model_version, HL_SCAN_SCANNER_VERSION, scan_results.version)
-        hl_scan_url = f"{hl_console_url}/model-details/{scan_results.model_id}/scans/{scan_results.scan_id}"
-        set_model_version_tag(model_version, HL_SCAN_URL, hl_scan_url)
+        if hl_console_url is not None:
+            hl_scan_url = f"{hl_console_url}/model-details/{scan_results.model_id}/scans/{scan_results.scan_id}"
+            set_model_version_tag(model_version, HL_SCAN_URL, hl_scan_url)
 
 # COMMAND ----------
 
