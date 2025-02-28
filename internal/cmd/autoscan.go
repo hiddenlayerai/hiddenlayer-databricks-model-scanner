@@ -89,7 +89,7 @@ func retrieveClusterFromCommandLine(dbxClient *databricks.WorkspaceClient) strin
 	for {
 		clusterId := inputStringValue("Databricks cluster ID", false)
 		if clusterId == "" {
-			// intenional user exist
+			// intentional user exist
 			return ""
 		}
 
@@ -217,8 +217,12 @@ func inputStringValue(name string, hideIt bool, allowEmpty bool, defaultValue ..
 			_, err = fmt.Scanln(&value)
 		}
 		if err != nil {
-			if err.Error() == "unexpected newline" && len(defaultValue) > 0 {
-				return defaultValue[0]
+			if err.Error() == "unexpected newline" {
+				if len(defaultValue) > 0 {
+					return defaultValue[0]
+				} else {
+					return ""
+				}
 			}
 			if strings.TrimSpace(value) == "" && allowEmpty == true {
 				fmt.Println("No input provided for optional parameter. Continuing...")
