@@ -284,7 +284,8 @@ def tag_model_version_with_scan_results(model_version: ModelVersion, scan_result
         set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, scan_results.end_time)
         set_model_version_tag(model_version, HL_SCAN_SCANNER_VERSION, scan_results.version)
         if hl_console_url is not None:
-            hl_scan_url = f"{hl_console_url}/model-details/{scan_results.model_id}/scans/{scan_results.scan_id}"
+            # scan_result.inventory sub object is populated only when using Saas scanner
+            hl_scan_url = f"{hl_console_url}/model-details/{scan_results.inventory.model_id}/scans/{scan_results.scan_id}"
             set_model_version_tag(model_version, HL_SCAN_URL, hl_scan_url)
 
 # COMMAND ----------
