@@ -366,9 +366,11 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_conso
 
 from datetime import datetime
 
-def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minutes: int) -> None:
+def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minutes: int) -> List[ModelVersion]:
     """For model versions in the pending state (scan job unfinished), mark them as failed if the jobs have expired.
-    Model versions in the input list must have the tags field populated."""
+    Model versions in the input list must have the tags field populated.
+    Return a list of model versions that are still actively being scanned."""
+    active_jobs = []
     for mv in pending_model_versions:
         if mv.tags is None:
             print(f"Error: tags are missing for model version {mv.name} version {mv.version}. Skipping stale job management.")
@@ -392,6 +394,10 @@ def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minu
             set_model_version_tag(mv, HL_SCAN_STATUS, STATUS_FAILED)
             set_model_version_tag(mv, HL_SCAN_MESSAGE, "Scan job timed out")
             set_model_version_tag(mv, HL_SCAN_UPDATED_AT, datetime.now().isoformat())
+        else:
+            active_jobs.append(mv)
+    return active_jobs
+    
 
 # Manual test
 # def get_my_model_version() -> ModelVersion:
@@ -431,7 +437,8 @@ for catalog_schema in config.catalogs_and_schemas:
         init(catalog_schema.catalog, catalog_schema.schema)
 
     models_to_scan.extend(mv_dict[STATUS_NONE])
-    active_jobs.extend(mv_dict[STATUS_PENDING])
+    current_active_jobs = handle_job_timeouts(mv_dict[STATUS_PENDING], HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+    active_jobs.extend(current_active_jobs)
 
 # Light up scan jobs, up to the limit.
 # Note: our client-side scan status goes directly from pending to done. There is an intermediate "running" state
@@ -443,6 +450,3 @@ for i in range(num_new_jobs):
     mv = models_to_scan[i]
     run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
     print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")
-
-# Mark timed-out jobs as failed.
-handle_job_timeouts(active_jobs, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
