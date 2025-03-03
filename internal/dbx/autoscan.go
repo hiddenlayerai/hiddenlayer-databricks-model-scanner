@@ -214,6 +214,12 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 		Parameters: params,
 		Schedule:   &schedule,
 	}
+	if config.DbxRunAs != "" {
+		createJob.RunAs = &jobs.JobRunAs{ServicePrincipalName: config.DbxRunAs}
+	} else {
+		fmt.Println("No run_as user provided, setting runner to the user who created the job")
+	}
+
 	job, err := client.Jobs.Create(ctx, createJob)
 	if err != nil {
 		log.Fatalf("Error scheduling model monitoring job: %v", err)
