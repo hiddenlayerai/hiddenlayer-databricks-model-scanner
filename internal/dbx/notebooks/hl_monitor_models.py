@@ -366,7 +366,7 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_conso
 
 from datetime import datetime
 
-def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minutes: int) -> None:
+def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minutes: int) -> List[ModelVersion]:
     """For model versions in the pending state (scan job unfinished), mark them as failed if the jobs have expired.
     Model versions in the input list must have the tags field populated. Return a list of model versions that are still being scanned."""
     active_jobs = []
