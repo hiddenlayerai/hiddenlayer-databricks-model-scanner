@@ -20,6 +20,7 @@ type Config struct {
 	DbxHost        string                `mapstructure:"dbx_host"`
 	DbxToken       string                `mapstructure:"dbx_token"`
 	DbxClusterId   string                `mapstructure:"dbx_cluster_id"`
+	DbxRunAs       string                `mapstructure:"dbx_run_as"`
 	DbxSchemas     []CatalogSchemaConfig `mapstructure:"dbx_schemas"`
 	HlApiKeyName   string                `mapstructure:"hl_api_key_name"`
 	HlClientID     string                `mapstructure:"hl_client_id"`

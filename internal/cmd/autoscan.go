@@ -12,7 +12,6 @@ import (
 
 	"github.com/databricks/databricks-sdk-go"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbx"
-	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbxapi"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/hl"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/utils"
 	"github.com/spf13/cobra"
@@ -50,6 +49,13 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 			config.DbxHost = inputDbxHost()
 			config.DbxToken = inputStringValue("Databricks token", true, false)
 		}
+		if config.DbxHost == "" || config.DbxToken == "" {
+			// indicate host and token are required
+			fmt.Println("Databricks host and token are required. Please try again.")
+			config.DbxHost = ""
+			config.DbxToken = ""
+			continue
+		}
 		var err error
 		dbxClient, err = dbx.Auth(config.DbxHost, config.DbxToken)
 		if err == nil {
@@ -68,8 +74,8 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 func retrieveSchemaFromCommandLine(dbxClient *databricks.WorkspaceClient) utils.CatalogSchemaConfig {
 	for {
 		var config utils.CatalogSchemaConfig
-		config.Catalog = inputStringValue("Catalog in Databricks Unity Catalog", false)
-		config.Schema = inputStringValue("Schema with models to scan, within the catalog", false)
+		config.Catalog = inputStringValue("Catalog in Databricks Unity Catalog", false, false)
+		config.Schema = inputStringValue("Schema with models to scan, within the catalog", false, false)
 
 		if config.Catalog == "" || config.Schema == "" {
 			// intenional user exist
@@ -87,7 +93,7 @@ func retrieveSchemaFromCommandLine(dbxClient *databricks.WorkspaceClient) utils.
 
 func retrieveClusterFromCommandLine(dbxClient *databricks.WorkspaceClient) string {
 	for {
-		clusterId := inputStringValue("Databricks cluster ID", false)
+		clusterId := inputStringValue("Databricks cluster ID", false, false)
 		if clusterId == "" {
 			// intentional user exist
 			return ""
@@ -221,12 +227,11 @@ func inputStringValue(name string, hideIt bool, allowEmpty bool, defaultValue ..
 				if len(defaultValue) > 0 {
 					return defaultValue[0]
 				} else {
+					if allowEmpty {
+						fmt.Println("No input provided for optional parameter. Continuing...")
+					}
 					return ""
 				}
-			}
-			if strings.TrimSpace(value) == "" && allowEmpty == true {
-				fmt.Println("No input provided for optional parameter. Continuing...")
-				return ""
 			}
 			fmt.Printf("Error reading %s: %v. Please try again.\n", name, err)
 			continue
