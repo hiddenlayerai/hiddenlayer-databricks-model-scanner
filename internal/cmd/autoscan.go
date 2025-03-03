@@ -12,6 +12,7 @@ import (
 
 	"github.com/databricks/databricks-sdk-go"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbx"
+	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbxapi"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/hl"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/utils"
 	"github.com/spf13/cobra"
@@ -47,7 +48,7 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 	for {
 		if config.DbxHost == "" || config.DbxToken == "" {
 			config.DbxHost = inputDbxHost()
-			config.DbxToken = inputStringValue("Databricks token", true)
+			config.DbxToken = inputStringValue("Databricks token", true, false)
 		}
 		var err error
 		dbxClient, err = dbx.Auth(config.DbxHost, config.DbxToken)
@@ -70,8 +71,8 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 	// Get the Unity Catalog catalog/schema from the user. If the catalog/schema doesn't exist, keep asking until it does.
 	for {
 		if config.DbxCatalog == "" || config.DbxSchema == "" {
-			config.DbxCatalog = inputStringValue("Catalog in Databricks Unity Catalog", false)
-			config.DbxSchema = inputStringValue("Schema with models to scan, within the catalog", false)
+			config.DbxCatalog = inputStringValue("Catalog in Databricks Unity Catalog", false, false)
+			config.DbxSchema = inputStringValue("Schema with models to scan, within the catalog", false, false)
 		}
 		schemaExists = dbx.SchemaExists(dbxClient, config.DbxCatalog, config.DbxSchema)
 		if schemaExists {
@@ -87,7 +88,7 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 	// Get the Databricks cluster ID from the user. If the cluster doesn't exist, keep asking until it does.
 	for {
 		if config.DbxClusterID == "" {
-			config.DbxClusterID = inputStringValue("ID of Databricks compute cluster to run the integration", false)
+			config.DbxClusterID = inputStringValue("ID of Databricks compute cluster to run the integration", false, false)
 		}
 		clusterExists := dbx.ClusterExists(dbxClient, config.DbxClusterID)
 		if clusterExists {
@@ -98,11 +99,30 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 			config.DbxClusterID = ""
 		}
 	}
+	// Get the Databricks service principal to run the job as.
+	// This is optional, so only prompt if it's not already in the configuration.
+	if config.DbxRunAs == "" {
+		config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
+		// Check that the service principal exists in Databricks. If not, keep asking until it does or a blank value is entered.
+		for config.DbxRunAs != "" {
+			fmt.Println("Checking service principal in Databricks..." + config.DbxRunAs)
+
+			servicePrincipalExists := dbxapi.ServicePrincipalExists(config.DbxRunAs, config.DbxHost, config.DbxToken)
+			if servicePrincipalExists {
+				fmt.Printf("Confirming service principal '%s' found in Databricks\n", config.DbxRunAs)
+				break
+			} else {
+				fmt.Printf("Service principal %s not found in Databricks. Please try again.\n", config.DbxRunAs)
+				config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
+			}
+		}
+
+	}
 }
 
 func configHlCreds(config *utils.Config) {
 	if config.HlApiUrl == "" {
-		config.HlApiUrl = inputStringValue("HiddenLayer API URL (default: https://api.us.hiddenlayer.ai)", false, "https://api.us.hiddenlayer.ai")
+		config.HlApiUrl = inputStringValue("HiddenLayer API URL (default: https://api.us.hiddenlayer.ai)", false, false, "https://api.us.hiddenlayer.ai")
 	}
 	hlApi, err := url.Parse(config.HlApiUrl)
 	if err != nil {
@@ -113,14 +133,14 @@ func configHlCreds(config *utils.Config) {
 
 	// Only need HL Api keys if using a Saas product
 	if (config.HlApiKeyName == "" || config.HlClientID == "" || config.HlClientSecret == "") && !enterpriseScanner {
-		config.HlApiKeyName = inputStringValue("HiddenLayer API key name", false)
-		config.HlClientID = inputStringValue("HiddenLayer client ID", false)
-		config.HlClientSecret = inputStringValue("HiddenLayer client secret", true)
+		config.HlApiKeyName = inputStringValue("HiddenLayer API key name", false, false)
+		config.HlClientID = inputStringValue("HiddenLayer client ID", false, false)
+		config.HlClientSecret = inputStringValue("HiddenLayer client secret", true, false)
 	}
 
 	// console url only needed if using a Saas product
 	if config.HlConsoleUrl == "" && !enterpriseScanner {
-		config.HlConsoleUrl = inputStringValue("HiddenLayer Console URL (default: https://console.us.hiddenlayer.ai", false, "https://console.us.hiddenlayer.ai")
+		config.HlConsoleUrl = inputStringValue("HiddenLayer Console URL (default: https://console.us.hiddenlayer.ai", false, false, "https://console.us.hiddenlayer.ai")
 	}
 
 	// Validate the HiddenLayer credentials by authenticating to the HiddenLayer API (if Saas)
@@ -136,7 +156,7 @@ func configHlCreds(config *utils.Config) {
 
 // inputStringValue prompts the user to enter a string value for a given name.
 // If hideIt is true, the input will not be echoed to the terminal.
-func inputStringValue(name string, hideIt bool, defaultValue ...string) string {
+func inputStringValue(name string, hideIt bool, allowEmpty bool, defaultValue ...string) string {
 	var value string
 	for {
 		var prompt string
@@ -156,7 +176,10 @@ func inputStringValue(name string, hideIt bool, defaultValue ...string) string {
 			if err.Error() == "unexpected newline" && len(defaultValue) > 0 {
 				return defaultValue[0]
 			}
-
+			if strings.TrimSpace(value) == "" && allowEmpty == true {
+				fmt.Println("No input provided for optional parameter. Continuing...")
+				return ""
+			}
 			fmt.Printf("Error reading %s: %v. Please try again.\n", name, err)
 			continue
 		}
