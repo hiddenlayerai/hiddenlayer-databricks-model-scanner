@@ -107,8 +107,7 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 		for config.DbxRunAs != "" {
 			fmt.Println("Checking service principal in Databricks..." + config.DbxRunAs)
 
-			servicePrincipalExists := dbxapi.ServicePrincipalExists(config.DbxRunAs, config.DbxHost, config.DbxToken)
-			if servicePrincipalExists {
+			if servicePrincipalExists := dbxapi.ServicePrincipalExists(config.DbxRunAs, config.DbxHost, config.DbxToken); servicePrincipalExists {
 				fmt.Printf("Confirming service principal '%s' found in Databricks\n", config.DbxRunAs)
 				break
 			} else {
