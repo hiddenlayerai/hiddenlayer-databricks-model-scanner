@@ -51,7 +51,6 @@ from hl_common import *
 
 class Configuration:
     """Configuration for this job"""
-
     full_model_name: str
     model_version_num: str
     hl_api_key_name: str
@@ -72,13 +71,11 @@ class Configuration:
         self.hl_api_url = hl_api_url
         self.hl_console_url = hl_console_url
 
-
 # In production, parameters are passed in.
 # For interactive debugging, set parameters here to whatever you need.
 dev_full_model_name = "integrations_sandbox.default.sk-learn-random-forest"
 dev_model_version_num = "1"
 dev_hl_api_key_name = "hiddenlayer-key"
-
 
 def get_job_params() -> Configuration:
     """Return full model name, version number (int), and HL API key name"""
@@ -287,7 +284,8 @@ def tag_model_version_with_scan_results(model_version: ModelVersion, scan_result
         set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, scan_results.end_time)
         set_model_version_tag(model_version, HL_SCAN_SCANNER_VERSION, scan_results.version)
         if hl_console_url is not None:
-            hl_scan_url = f"{hl_console_url}/model-details/{scan_results.model_id}/scans/{scan_results.scan_id}"
+            # scan_result.inventory sub object is populated only when using Saas scanner
+            hl_scan_url = f"{hl_console_url}/model-details/{scan_results.inventory.model_id}/scans/{scan_results.scan_id}"
             set_model_version_tag(model_version, HL_SCAN_URL, hl_scan_url)
 
 # COMMAND ----------
