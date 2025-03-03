@@ -96,7 +96,7 @@ func retrieveClusterFromCommandLine(dbxClient *databricks.WorkspaceClient) strin
 	for {
 		clusterId := inputStringValue("Databricks cluster ID", false, false)
 		if clusterId == "" {
-			// intentional user exist
+			// intentional user exit
 			return ""
 		}
 
