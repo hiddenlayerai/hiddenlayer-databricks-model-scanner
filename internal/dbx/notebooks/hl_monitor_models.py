@@ -420,6 +420,9 @@ def handle_job_timeouts(pending_model_versions: List[ModelVersion], timeout_minu
 # Poll for new model versions and scan as needed
 
 config = get_job_params()
+active_jobs = []
+models_to_scan = []
+
 for catalog_schema in config.catalogs_and_schemas:
     mv_dict: Dict[str, List[ModelVersion]] = get_model_versions_by_status(catalog_schema.catalog, catalog_schema.schema, [STATUS_NONE, STATUS_PENDING])
 
@@ -427,18 +430,19 @@ for catalog_schema in config.catalogs_and_schemas:
     if not is_init_done():
         init(catalog_schema.catalog, catalog_schema.schema)
 
-    num_new_models = len(mv_dict[STATUS_NONE])
+    models_to_scan.extend(mv_dict[STATUS_NONE])
+    active_jobs.extend(mv_dict[STATUS_PENDING])
 
-    # Light up scan jobs, up to the limit.
-    # Note: our client-side scan status goes directly from pending to done. There is an intermediate "running" state
-    # on the server side, but that's not exposed through the Python SDK, which we call synchronously. 
-    num_active_jobs = len(mv_dict[STATUS_PENDING])
-    max_new_jobs = max(MAX_ACTIVE_SCAN_JOBS - num_active_jobs, 0)
-    num_new_jobs = min(max_new_jobs, num_new_models)
-    for i in range(num_new_jobs):
-        mv = mv_dict[STATUS_NONE][i]
-        run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
-        print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")
+# Light up scan jobs, up to the limit.
+# Note: our client-side scan status goes directly from pending to done. There is an intermediate "running" state
+# on the server side, but that's not exposed through the Python SDK, which we call synchronously. 
+num_active_jobs = len(active_jobs)
+max_new_jobs = max(MAX_ACTIVE_SCAN_JOBS - num_active_jobs, 0)
+num_new_jobs = min(max_new_jobs, len(models_to_scan))
+for i in range(num_new_jobs):
+    mv = models_to_scan[i]
+    run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+    print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")
 
-    # Mark timed-out jobs as failed.
-    handle_job_timeouts(mv_dict[STATUS_PENDING], HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+# Mark timed-out jobs as failed.
+handle_job_timeouts(active_jobs, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
