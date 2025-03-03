@@ -2,8 +2,11 @@
 #rename this to hldbx.yaml and store in ~/.hl/
 dbx_host: https://example.azuredatabricks.net/
 dbx_token: asdfasdfasdfasdf-3
-dbx_catalog: example_sandbox
-dbx_schema: default
+dbx_schemas:
+   - dbx_catalog: research_catalog
+     dbx_schema: research_1
+   - dbx_catalog: production_catalog
+     dbx_schema: chatbot
 dbx_cluster_id: 1234-567-1910
 dbx_run_as: userID
 hl_api_url: https://api.us.hiddenlayer.ai # Custom HiddenLayer api URL, defaults to - https://api.us.hiddenlayer.ai"

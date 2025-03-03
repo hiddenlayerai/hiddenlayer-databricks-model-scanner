@@ -12,6 +12,7 @@ import (
 
 	"github.com/databricks/databricks-sdk-go"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbx"
+	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbxapi"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/hl"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/utils"
 	"github.com/spf13/cobra"
@@ -78,7 +79,7 @@ func retrieveSchemaFromCommandLine(dbxClient *databricks.WorkspaceClient) utils.
 		config.Schema = inputStringValue("Schema with models to scan, within the catalog", false, false)
 
 		if config.Catalog == "" || config.Schema == "" {
-			// intenional user exist
+			// intentional user exist
 			return utils.CatalogSchemaConfig{}
 		}
 
@@ -129,45 +130,75 @@ func confirmCluster(clusterId string, dbxClient *databricks.WorkspaceClient) boo
 }
 
 func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceClient) {
-	clusterId := retrieveClusterFromCommandLine(dbxClient)
-	if clusterId == "" {
-		// intentional user exit
-		fmt.Println("No cluster to run monitoring job, exiting")
-		return
-	}
-	// cluster will have been validated
-	config.DbxClusterId = clusterId
-	if len(config.DbxSchemas) == 0 {
-		for {
-			fmt.Println("Add a new schema to monitor, or press Enter to finish")
-			schema := retrieveSchemaFromCommandLine(dbxClient)
-			if schema == (utils.CatalogSchemaConfig{}) {
+	for {
+		if config.DbxClusterId == "" {
+			clusterId := retrieveClusterFromCommandLine(dbxClient)
+			if clusterId == "" {
 				// intentional user exit
-				break
+				fmt.Println("No cluster to run monitoring job, exiting")
+				return
 			}
-			// schema will have been validated
-			config.DbxSchemas = append(config.DbxSchemas, schema)
+			config.DbxClusterId = clusterId
+		} else {
+			if !confirmCluster(config.DbxClusterId, dbxClient) {
+				fmt.Println("Cluster not found in Databricks, please provide a valid cluster ID")
+				config.DbxClusterId = ""
+				continue
+			}
 		}
+		// cluster will have been validated
+
+		// Get the Databricks service principal to run the job as.
+		// This is optional, so only prompt if it's not already in the configuration.
+		if config.DbxRunAs == "" {
+			config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
+			// Check that the service principal exists in Databricks. If not, keep asking until it does or a blank value is entered.
+			for config.DbxRunAs != "" {
+				fmt.Println("Checking service principal in Databricks..." + config.DbxRunAs)
+
+				if servicePrincipalExists := dbxapi.ServicePrincipalExists(config.DbxRunAs, config.DbxHost, config.DbxToken); servicePrincipalExists {
+					fmt.Printf("Confirming service principal '%s' found in Databricks\n", config.DbxRunAs)
+					break
+				} else {
+					fmt.Printf("Service principal %s not found in Databricks. Please try again.\n", config.DbxRunAs)
+					config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
+				}
+			}
+		}
+
+		if len(config.DbxSchemas) == 0 {
+			for {
+				fmt.Println("Add a new schema to monitor, or press Enter to finish")
+				schema := retrieveSchemaFromCommandLine(dbxClient)
+				if schema == (utils.CatalogSchemaConfig{}) {
+					// intentional user exit
+					break
+				}
+				// schema will have been validated
+				config.DbxSchemas = append(config.DbxSchemas, schema)
+			}
+			return
+		}
+
+		var validSchemas []utils.CatalogSchemaConfig
+		for _, schema := range config.DbxSchemas {
+			if !confirmSchema(schema, dbxClient) {
+				// Message indicating what the issue will have been printed already, just ask for updated config
+				replacementConfig := retrieveSchemaFromCommandLine(dbxClient)
+				if replacementConfig == (utils.CatalogSchemaConfig{}) {
+					// user wants to skip this schema, remove it
+					continue
+				} else {
+					// replace existing (bad) schema config with new (validated) one
+					validSchemas = append(validSchemas, replacementConfig)
+				}
+			} else {
+				validSchemas = append(validSchemas, schema)
+			}
+		}
+		config.DbxSchemas = validSchemas
 		return
 	}
-
-	var validSchemas []utils.CatalogSchemaConfig
-	for _, schema := range config.DbxSchemas {
-		if !confirmSchema(schema, dbxClient) {
-			// Message indicating what the issue will have been printed already, just ask for updated config
-			replacementConfig := retrieveSchemaFromCommandLine(dbxClient)
-			if replacementConfig == (utils.CatalogSchemaConfig{}) {
-				// user wants to skip this schema, remove it
-				continue
-			} else {
-				// replace existing (bad) schema config with new (validated) one
-				validSchemas = append(validSchemas, replacementConfig)
-			}
-		} else {
-			validSchemas = append(validSchemas, schema)
-		}
-	}
-	config.DbxSchemas = validSchemas
 }
 
 func configHlCreds(config *utils.Config) {
