@@ -1,0 +1,42 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go 1.23
+      uses: actions/setup-go@v5.3.0
+      with:
+        go-version: 1.23
+
+    - name: Vet
+      run: make vet
+
+    - name: Build
+      run: make build
+
+    - name: Test
+      run: make test
+
+    - name: Archive
+      run: tar -czvf hldbx.tar.gz hldbx
+
+#    - name: Upload Release Asset
+#      uses: actions/upload-release-asset@v1
+#      with:
+#        upload_url: ${{ github.event.release.upload_url }}
+#        asset_path: ./hldbx.tar.gz
+#        asset_name: hldbx.tar.gz
+#        asset_content_type: application/gzip
+#        token: ${{ secrets.GITHUB_TOKEN }}
