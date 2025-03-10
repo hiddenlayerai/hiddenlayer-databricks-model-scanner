@@ -19,10 +19,8 @@ builds:
     goarch:
       - amd64
       - arm64
-#    ldflags:
-#      - -s -w
-
-
+    ldflags:
+      - -s -w
 
 archives:
   - format: tar.gz

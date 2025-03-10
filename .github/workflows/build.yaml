@@ -14,6 +14,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+            fetch-depth: 0 # needed by gorelease changelog to work properly
 
     - name: Set up Go 1.23
       uses: actions/setup-go@v5.3.0
@@ -23,15 +25,26 @@ jobs:
     - name: Vet
       run: make vet
 
-    - name: Build
-      run: make build
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        # either 'goreleaser' (default) or 'goreleaser-pro'
+        distribution: goreleaser
+        # 'latest', 'nightly', or a semver
+        version: '~> v2'
+        args: release --skip publish --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Unit Test
-      run: make unit-test
-
-    - name: Archive
-      run: tar -czvf hldbx.tar.gz hldbx
-
+#    - name: Build
+#      run: make build
+#
+#    - name: Unit Test
+#      run: make unit-test
+#
+#    - name: Archive
+#      run: tar -czvf hldbx.tar.gz hldbx
+#
 #    - name: Upload Release Asset
 #      uses: actions/upload-release-asset@v1
 #      with:
