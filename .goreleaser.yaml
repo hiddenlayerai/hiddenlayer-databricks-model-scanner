@@ -19,13 +19,11 @@ builds:
     goarch:
       - amd64
       - arm64
-#    flags:
-#      - -ldflags=-s -w
-
-
+    ldflags:
+      - -s -w
 
 archives:
-  - format: tar.gz
+  - formats: [ 'tar.gz' ]
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
@@ -37,8 +35,9 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
-
+        formats: [ 'zip' ]
 
 release:
-  skip_upload: true
+  github:
+    owner: hiddenlayerai
+    name: hiddenlayer-databricks-model-scanner

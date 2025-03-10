@@ -1,0 +1,40 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0 # needed by gorelease changelog to work properly
+
+    - name: Set up Go 1.23
+      uses: actions/setup-go@v5.3.0
+      with:
+        go-version: 1.23
+
+    - name: Vet
+      run: make vet
+
+    - name: Test
+      run: make test
+
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        # either 'goreleaser' (default) or 'goreleaser-pro'
+        distribution: goreleaser
+        # 'latest', 'nightly', or a semver
+        version: '~> v2'
+        # --snapshot implictly skips the publish step
+        args: release --snapshot --clean
+        
