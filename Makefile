@@ -10,6 +10,6 @@ clean:
 vet:
 	go vet ./...
 
-.PHONY: unit-test
-unit-test:
+.PHONY: test
+test:
 	go test -v ./...
