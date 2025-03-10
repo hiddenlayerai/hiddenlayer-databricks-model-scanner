@@ -18,7 +18,7 @@ Retrieve the latest version of the CLI from our releases page.
 
 You will need the following information for Databricks:
 - URL - The workspace URL for your Databricks instance.
-- Personal Access Token (PAT) - Used to authenticate access to Databricks resources. Link to the Databricks PAT documentation.
+- Personal Access Token (PAT) - Used to authenticate access to Databricks resources. This PAT can be for a service principal or a user.
 - Catalog(s) - The name of the Unity Catalog to scan.
 - Schema(s) - The schema the models are registered in.
 - Compute - The ID for the cluster running the jobs; must have UC access.
