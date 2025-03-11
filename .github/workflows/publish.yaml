@@ -12,6 +12,8 @@ jobs:
   release:
     permissions:
       packages: write
+      contents: read
+      statuses: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
