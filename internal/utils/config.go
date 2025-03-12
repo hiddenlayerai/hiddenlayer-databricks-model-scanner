@@ -17,16 +17,18 @@ type CatalogSchemaConfig struct {
 }
 
 type Config struct {
-	DbxHost        string                `mapstructure:"dbx_host"`
-	DbxToken       string                `mapstructure:"dbx_token"`
-	DbxClusterId   string                `mapstructure:"dbx_cluster_id"`
-	DbxRunAs       string                `mapstructure:"dbx_run_as"`
-	DbxSchemas     []CatalogSchemaConfig `mapstructure:"dbx_schemas"`
-	HlApiKeyName   string                `mapstructure:"hl_api_key_name"`
-	HlClientID     string                `mapstructure:"hl_client_id"`
-	HlClientSecret string                `mapstructure:"hl_client_secret"`
-	HlApiUrl       string                `mapstructure:"hl_api_url"`
-	HlConsoleUrl   string                `mapstructure:"hl_console_url"`
+	DbxHost                   string                `mapstructure:"dbx_host"`
+	DbxToken                  string                `mapstructure:"dbx_token"`
+	DbxClusterId              string                `mapstructure:"dbx_cluster_id"`
+	DbxRunAs                  string                `mapstructure:"dbx_run_as"`
+	DbxSchemas                []CatalogSchemaConfig `mapstructure:"dbx_schemas"`
+	DbxMaxActiveScanJobs      string                `mapstructure:"dbx_max_active_scan_jobs"`
+	DbxPollingIntervalMinutes string                `mapstructure:"dbx_polling_interval_minutes"`
+	HlApiKeyName              string                `mapstructure:"hl_api_key_name"`
+	HlClientID                string                `mapstructure:"hl_client_id"`
+	HlClientSecret            string                `mapstructure:"hl_client_secret"`
+	HlApiUrl                  string                `mapstructure:"hl_api_url"`
+	HlConsoleUrl              string                `mapstructure:"hl_console_url"`
 }
 
 // ConfigNotFound is a custom error type for configuration not found errors

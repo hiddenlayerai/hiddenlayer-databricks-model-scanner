@@ -188,7 +188,7 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 	// Create a schedule for running the notebook.
 	// If you change the schedule, update the job_name accordingly.
 	schedule := jobs.CronSchedule{
-		QuartzCronExpression: "0 0/5 * * * ?", // Run every five minutes
+		QuartzCronExpression: fmt.Sprintf("0 0/%s * * * ?", config.DbxPollingIntervalMinutes), // Run every five minutes
 		//QuartzCronExpression: "0 * * * * ?", // Run every minute (useful for testing)
 		TimezoneId: "UTC",
 	}
@@ -207,7 +207,11 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 	}
 
 	// Create and schedule the notebook job
-	notebookTask := jobs.NotebookTask{NotebookPath: notebookPath}
+	notebookTask := jobs.NotebookTask{
+		NotebookPath: notebookPath,
+		BaseParameters: map[string]string{
+			"MAX_ACTIVE_SCAN_JOBS": config.DbxMaxActiveScanJobs},
+	}
 	createJob := jobs.CreateJob{Name: job_name,
 		Tasks: []jobs.Task{{
 			Description:       "Poll for new model versions and scan them using HiddenLayer",
