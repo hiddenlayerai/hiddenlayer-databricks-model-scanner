@@ -167,19 +167,11 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 		}
 
 		for config.DbxMaxActiveScanJobs == "" {
-			config.DbxMaxActiveScanJobs = inputStringValue("Please enter the Max Number of concurrent scan jobs", false, false)
-			if config.DbxMaxActiveScanJobs == "" {
-				fmt.Println("Max number of current scan jobs is required to be set, please try again")
-			}
-
+			config.DbxMaxActiveScanJobs = inputStringValue("Please enter the Max Number of concurrent scan jobs (default: 10)", false, true, "10")
 		}
 
 		for config.DbxPollingIntervalMinutes == "" {
-			config.DbxPollingIntervalMinutes = inputStringValue("Please enter desired polling interval for the scan job in minutes", false, false)
-			if config.DbxPollingIntervalMinutes == "" {
-				fmt.Println("Polling interval is required to be set, please try again")
-			}
-
+			config.DbxPollingIntervalMinutes = inputStringValue("Please enter desired polling interval for the scan job in minutes (default: 5mins)", false, true, "5")
 		}
 
 		if len(config.DbxSchemas) == 0 {
