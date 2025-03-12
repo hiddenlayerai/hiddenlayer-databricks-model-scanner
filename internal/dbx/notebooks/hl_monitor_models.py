@@ -70,7 +70,7 @@ HL_SCAN_NOTEBOOK_TIMEOUT_MINS=4800
 # Maximum number of scan jobs that we'll allow to run at once.
 # HL modscan has a queueing system so can handle receiving lots of jobs, but active jobs burn disk space
 # and network bandwith.
-MAX_ACTIVE_SCAN_JOBS = 10
+MAX_ACTIVE_SCAN_JOBS =  int(dbutils.widgets.get("MAX_ACTIVE_SCAN_JOBS")) or 10
 
 # COMMAND ----------
 
