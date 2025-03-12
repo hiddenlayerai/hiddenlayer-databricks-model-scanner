@@ -166,6 +166,22 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 			}
 		}
 
+		for config.DbxMaxActiveScanJobs == "" {
+			config.DbxMaxActiveScanJobs = inputStringValue("Please enter the Max Number of concurrent scan jobs", false, false)
+			if config.DbxMaxActiveScanJobs == "" {
+				fmt.Println("Max number of current scan jobs is required to be set, please try again")
+			}
+
+		}
+
+		for config.DbxPollingIntervalMinutes == "" {
+			config.DbxPollingIntervalMinutes = inputStringValue("Please enter desired polling interval for the scan job in minutes", false, false)
+			if config.DbxPollingIntervalMinutes == "" {
+				fmt.Println("Polling interval is required to be set, please try again")
+			}
+
+		}
+
 		if len(config.DbxSchemas) == 0 {
 			for {
 				fmt.Println("Add a new schema to monitor, or press Enter to finish")
