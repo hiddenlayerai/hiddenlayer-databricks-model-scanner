@@ -13,3 +13,16 @@ vet:
 .PHONY: test
 test:
 	go test -v ./...
+
+.PHONY: setupGitHooks
+setupGitHooks:
+	@if [ -z "$$ANTHROPIC_API_KEY" ]; then \
+		echo "Error: MY_ANTHROPIC_API_KEYVAR is not set" >&2; \
+		exit 1; \
+	fi
+	pip install -r .githooks/requirements.txt
+	git config --local core.hooksPath .githooks/
+	chmod +x .githooks/pre-commit
+	chmod +x .githooks/pre-commit.py
+
+	
