@@ -60,7 +60,7 @@ def main():
     diff_output = diff_process.stdout
     print(f"Diff: {diff_output}")
 
-    meta_prompt=f"Given this git diff and that the current version is {version}, output the new recommended semver version bump, output only the new version number in the server format. If the diff is empty or diff contains edits to the version.go file you should recommend the current version as the new version. If the diff: section is not empty, the new version can never be the same as the old version unless the only diff is in the version.go file"
+    meta_prompt=f"Given the previous diff: section and that the current version is {version}, output the new recommended semver version bump, output only the new version number in the semver format. If the diff is empty or diff contains edits only to the version.go file you should recommend the current version as the new version. Otherwise, the new version can never be the same as the old version."
 
 
     client = anthropic.Anthropic(
