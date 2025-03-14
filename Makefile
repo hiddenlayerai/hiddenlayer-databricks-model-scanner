@@ -17,7 +17,7 @@ test:
 .PHONY: setupGitHooks
 setupGitHooks:
 	@if [ -z "$$ANTHROPIC_API_KEY" ]; then \
-		echo "Error: MY_ANTHROPIC_API_KEYVAR is not set" >&2; \
+		echo "Error: ANTHROPIC_API_KEY environment variable is not set" >&2; \
 		exit 1; \
 	fi
 	pip install -r .githooks/requirements.txt
