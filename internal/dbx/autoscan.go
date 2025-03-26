@@ -188,7 +188,7 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 	// Create a schedule for running the notebook.
 	// If you change the schedule, update the job_name accordingly.
 	schedule := jobs.CronSchedule{
-		QuartzCronExpression: fmt.Sprintf("0 0/%s * * * ?", config.DbxPollingIntervalMinutes), // Run every five minutes
+		QuartzCronExpression: fmt.Sprintf("0 0/%d * * * ?", config.DbxPollingIntervalMinutes), // Run every five minutes
 		//QuartzCronExpression: "0 * * * * ?", // Run every minute (useful for testing)
 		TimezoneId: "UTC",
 	}

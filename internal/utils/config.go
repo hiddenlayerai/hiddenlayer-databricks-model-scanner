@@ -23,7 +23,7 @@ type Config struct {
 	DbxRunAs                  string                `mapstructure:"dbx_run_as"`
 	DbxSchemas                []CatalogSchemaConfig `mapstructure:"dbx_schemas"`
 	DbxMaxActiveScanJobs      string                `mapstructure:"dbx_max_active_scan_jobs"`
-	DbxPollingIntervalMinutes string                `mapstructure:"dbx_polling_interval_minutes"`
+	DbxPollingIntervalMinutes int                   `mapstructure:"dbx_polling_interval_minutes"`
 	HlApiKeyName              string                `mapstructure:"hl_api_key_name"`
 	HlClientID                string                `mapstructure:"hl_client_id"`
 	HlClientSecret            string                `mapstructure:"hl_client_secret"`

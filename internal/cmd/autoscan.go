@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -170,8 +171,14 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 			config.DbxMaxActiveScanJobs = inputStringValue("Please enter the Max Number of concurrent scan jobs (default: 10)", false, true, "10")
 		}
 
-		for config.DbxPollingIntervalMinutes == "" {
-			config.DbxPollingIntervalMinutes = inputStringValue("Please enter desired polling interval for the scan job in minutes (default: 5mins)", false, true, "5")
+		for config.DbxPollingIntervalMinutes == 0 {
+			pollingInterval := inputStringValue("Please enter desired polling interval for the scan job in minutes (default: 10 minutes)", false, true, "10")
+			var err error
+			config.DbxPollingIntervalMinutes, err = strconv.Atoi(pollingInterval)
+			if err != nil {
+				fmt.Println("Invalid input for polling interval. Please enter a valid integer value.")
+				config.DbxPollingIntervalMinutes = 0
+			}
 		}
 
 		if len(config.DbxSchemas) == 0 {
