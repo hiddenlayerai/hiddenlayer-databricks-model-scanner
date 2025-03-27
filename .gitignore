@@ -4,3 +4,5 @@ __pycache__
 dist
 .venv
 vendor
+internal/dbx/notebooks/hl_init_marker.txt
+bin/

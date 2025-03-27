@@ -1,0 +1,18 @@
+#This config file is used to store the configuration for the hldbx command line tool
+#rename this to hldbx.yaml and store in ~/.hl/
+dbx_host: https://example.azuredatabricks.net/
+dbx_token: asdfasdfasdfasdf-3
+dbx_schemas:
+   - dbx_catalog: research_catalog
+     dbx_schema: research_1
+   - dbx_catalog: production_catalog
+     dbx_schema: chatbot
+dbx_cluster_id: 1234-567-1910
+dbx_run_as: userID
+dbx_max_active_scan_jobs: 10
+dbx_polling_interval_minutes: 5
+hl_api_url: https://api.us.hiddenlayer.ai # Custom HiddenLayer api URL, defaults to - https://api.us.hiddenlayer.ai"
+hl_console_url: https://console.us.hiddenlayer.ai # Custom HiddenLayer console URL, Defaults to - https://console.us.hiddenlayer.ai"
+hl_api_key_name: dbx-example
+hl_client_id: abcdefgh-abcd-abcd-123-abcdef12345
+hl_client_secret: abcd1234-abcd123456789

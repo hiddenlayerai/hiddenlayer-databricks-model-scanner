@@ -1,4 +1,8 @@
 # Databricks notebook source
+# MAGIC %restart_python
+
+# COMMAND ----------
+
 # This notebook scans a model version for risks, using the HiddenLayer (HL) SaaS Model Scanner.
 # Record the outcome as tags in the MLflow Model Registry that is integrated into Unity Catalog.
 # Python version: 3.11+
@@ -8,6 +12,7 @@
 # * full_model_name (string) - fully qualified name of the model to be scanned: <catalog>.<schema>.<model_name>
 # * model_version_num (int) - MLflow version to be scanned
 # * hl_api_key_name (string) - name of the HL API key, used to get credentials from the Databricks secrets store
+# * hl_api_url (string) - Optional parameter to enable the scanner to use an Enterprise self-hosted model scanner
 
 # Steps:
 # Retrieve the job parameters
@@ -32,7 +37,7 @@ from IPython.display import display, Javascript
 
 if not importlib.util.find_spec("hiddenlayer"):
     # same as "%pip install" but we can't do that within an if statement
-    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==1.2.2')
+    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.5')
     # same as "%restart_python" but we can't do that within an if statement
     display(Javascript('Jupyter.notebook.kernel.restart()'))
 
@@ -41,6 +46,73 @@ if not importlib.util.find_spec("hiddenlayer"):
 # Import HL code that is shared across notebooks
 
 from hl_common import *
+
+# COMMAND ----------
+
+class Configuration:
+    """Configuration for this job"""
+    full_model_name: str
+    model_version_num: str
+    hl_api_key_name: str
+    hl_api_url: str
+    hl_console_url: str
+
+    def __init__(
+        self,
+        full_model_name,
+        model_version_num,
+        hl_api_key_name,
+        hl_api_url,
+        hl_console_url,
+    ):
+        self.full_model_name = full_model_name
+        self.model_version_num = model_version_num
+        self.hl_api_key_name = hl_api_key_name
+        self.hl_api_url = hl_api_url
+        self.hl_console_url = hl_console_url
+
+# In production, parameters are passed in.
+# For interactive debugging, set parameters here to whatever you need.
+dev_full_model_name = "integrations_sandbox.default.sk-learn-random-forest"
+dev_model_version_num = "1"
+dev_hl_api_key_name = "hiddenlayer-key"
+
+def get_job_params() -> Configuration:
+    """Return full model name, version number (int), and HL API key name"""
+    widgets_to_values = dbutils.widgets.getAll()
+
+    full_model_name = widgets_to_values["full_model_name"]
+    assert full_model_name is not None, "full_model_name is a required job parameter"
+
+    model_version_num = widgets_to_values["model_version_num"]
+    assert (
+        model_version_num is not None
+    ), "model_version_num is a required job parameter"
+
+    hl_api_url = widgets_to_values["hl_api_url"]
+    assert hl_api_url is not None, "hl_api_url is a required job parameter"
+
+    hl_console_url = None
+    hl_api_key_name = None
+
+    if not is_enterprise_scanner(hl_api_url):
+        hl_api_key_name = widgets_to_values["hl_api_key_name"]
+        assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
+
+        hl_console_url = None
+        if "hl_console_url" in widgets_to_values.keys():
+            hl_console_url = widgets_to_values["hl_console_url"]
+
+    try:
+        model_version_num = int(model_version_num)
+    except ValueError:
+        raise ValueError(
+            f"model_version_num job parameter must be an integer, got '{model_version_num}'"
+        )
+
+    return Configuration(
+        full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_console_url
+    )
 
 # COMMAND ----------
 
@@ -66,82 +138,6 @@ else:
 
 # COMMAND ----------
 
-# Check that a model version is registered and ready for scanning
-
-from mlflow.entities.model_registry import ModelVersion
-
-class ModelVersionAlreadyScanned(ModelVersionError):
-    def __init__(self, model_version: ModelVersion):
-        message = f"Model '{model_version.name}' version {model_version.version} has already been submitted for scanning."
-        super().__init__(model_version, message)
-
-class ModelVersionNotRegistered(ModelVersionError):
-    def __init__(self, model_version: ModelVersion):
-        message = f"Model '{model_version.name}' version {model_version.version} is not registered with MLflow."
-        super().__init__(model_version, message)
-
-def check_model_version_is_ready_for_scanning(model_version: ModelVersion) -> None:
-    """Check that the model version is registered and ready for scanning"""
-    # Only allow unscanned models for now. Later we can allow rescanning.
-    scan_status = model_version.tags.get(HL_SCAN_STATUS)
-    if scan_status is not None and scan_status != STATUS_UNSCANNED:
-      raise ModelVersionAlreadyScanned(model_version=model_version)
-
-    if model_version.status != MODEL_VERSION_STATUS_READY:
-      raise ModelVersionNotRegistered(model_version=model_version)
-
-# Tests
-
-def check_model_version_is_ready_for_scanning_happy_path() -> None:
-  # Happy path test
-  test_mv = ModelVersion(
-      name="dummy model version",
-      version="1",
-      creation_timestamp=0,
-      last_updated_timestamp=1)
-  try:
-      check_model_version_is_ready_for_scanning(test_mv)
-  except Exception as e:
-      raise Exception(f"Test of {check_model_version_is_ready_for_scanning} failed: {str(e)}")
-
-def check_model_version_is_ready_for_scanning_bad_registry_status() -> None:
-  # Test bad registry status
-  test_mv = ModelVersion(
-      name="dummy_model_version",
-      version="1",
-      creation_timestamp=0,
-      last_updated_timestamp=1,
-      status="model not ready")  # not a real status, but good enough for testing
-  try:
-      check_model_version_is_ready_for_scanning(test_mv)
-      raise Exception("Test of check_model_version_is_ready_for_scanning failed, expected ModelVersionNotRegistered exception")
-  except ModelVersionNotRegistered as e:
-      pass
-
-def check_model_version_is_ready_for_scanning_bad_scan_status() -> None:
-# Test bad scan status
-  from dataclasses import dataclass
-  from typing import Dict
-
-  @dataclass
-  class DummyModelVersion:
-      name: str
-      version: str
-      tags: Dict[str, str]
-
-  test_mv = DummyModelVersion("dummy_model_version", "1", tags={HL_SCAN_STATUS: STATUS_DONE})
-  try:
-    check_model_version_is_ready_for_scanning(test_mv)
-    raise Exception("Test of check_model_version_is_ready_for_scanning failed, expected ModelVersionAlreadyScanned exception")
-  except ModelVersionAlreadyScanned as e:
-      pass
-
-register_test("check_model_version_is_ready_for_scanning_happy_path", check_model_version_is_ready_for_scanning_happy_path)
-register_test("check_model_version_is_ready_for_scanning_bad_registry_status", check_model_version_is_ready_for_scanning_bad_registry_status)
-register_test("check_model_version_is_ready_for_scanning_bad_scan_status", check_model_version_is_ready_for_scanning_bad_scan_status)
-
-# COMMAND ----------
-
 # We're about to submit the model version to the HL Model Scanner. Tag the model version accordingly.
 
 from datetime import datetime
@@ -159,58 +155,6 @@ def tag_for_scanning(model_version: ModelVersion) -> None:
 # tag_for_scanning(get_test_mv())
 # print(get_test_mv().tags)
 # clear_tags(get_test_mv())
-
-# COMMAND ----------
-
-# Get the job parameters: full model name, version number, and HL API key name.
-
-# In production, parameters are passed in.
-# For interactive debugging, set parameters here to whatever you need.
-dev_full_model_name = "integrations_sandbox.default.sk-learn-random-forest"
-dev_model_version_num = "1"
-dev_hl_api_key_name = "hiddenlayer-key"
-
-import json
-from typing import Tuple
-
-# Would be nice to put this in hl_common, but Python scripts can't use dbutils.
-def is_job_run() -> bool:
-    """Return true if this notebook is being run as a job, false otherwise."""
-    try:
-        # Fetch notebook context metadata
-        context = dbutils.entry_point.getDbutils().notebook().getContext().toJson()
-        context_json = json.loads(context)
-        # Check for the job ID in the context. If it's there, then this is a job run.
-        tags = context_json['tags']
-        is_job_run = bool(tags and tags.get('jobId'))
-        return is_job_run
-    except Exception as e:
-        # If context fetching fails, assume this is an interactive run
-        print(f"Exception in is_job_run: {str(e)}")
-        return False
-
-def get_job_params() -> Tuple[str, int, str]:
-    """Return full model name, version number (int), and HL API key name"""
-    if not is_job_run():
-        print(f"Running in interactive mode. Using dev parameters: " +
-              f"{dev_full_model_name}, {dev_model_version_num}, {dev_hl_api_key_name} .")
-        full_model_name = dev_full_model_name
-        model_version_num = dev_model_version_num
-        hl_api_key_name = dev_hl_api_key_name
-    else:
-        full_model_name = dbutils.widgets.get("full_model_name")
-        assert full_model_name is not None, "full_model_name is a required job parameter"
-
-        model_version_num = dbutils.widgets.get("model_version_num")
-        assert model_version_num is not None, "model_version_num is a required job parameter"
-
-        hl_api_key_name = dbutils.widgets.get("hl_api_key_name")
-        assert hl_api_key_name is not None, "hl_api_key_name is a required job parameter"
-    try:
-        model_version_num = int(model_version_num)
-    except ValueError:
-        raise ValueError(f"model_version_num job parameter must be an integer, got '{model_version_num}'")
-    return full_model_name, model_version_num, hl_api_key_name
 
 # COMMAND ----------
 
@@ -292,10 +236,10 @@ def get_hl_api_creds(catalog: str, schema: str, hl_api_key_name: str):
 from hiddenlayer import HiddenlayerServiceClient
 from hiddenlayer.sdk.models import ScanResults
 
-def hl_auth(hl_creds: HLCredentials) -> HiddenlayerServiceClient:
+def hl_auth(hl_creds: HLCredentials, hl_api_url: str) -> HiddenlayerServiceClient:
     """Return a HiddenlayerServiceClient authenticated with the given credentials."""
     hl_client = HiddenlayerServiceClient(
-        host="https://api.us.hiddenlayer.ai",
+        host=hl_api_url,
         api_id=hl_creds.client_id,
         api_key=hl_creds.client_secret)
     return hl_client
@@ -306,13 +250,12 @@ def _reverse_full_model_name(full_model_name: str) -> str:
     parts = full_model_name.split(".")
     return f"{parts[2]}.{parts[1]}.{parts[0]}"
 
-def hl_scan_folder(hl_creds: HLCredentials, hl_client: HiddenlayerServiceClient,
+def hl_scan_folder(hl_client: HiddenlayerServiceClient,
                    full_model_name: str, model_version_num: int, local_dir: str) -> ScanResults:
     """Scan model artifacts in the local directory using the credentials. Return the scan results."""
-    hl_client = hl_auth(hl_creds)
     hl_model_name = _reverse_full_model_name(full_model_name)
     return hl_client.model_scanner.scan_folder(
-        model_name=hl_model_name, model_version=model_version_num, path=local_dir)
+        model_name=hl_model_name, model_version=str(model_version_num), path=local_dir)
 
 # Manual test
 # import tempfile
@@ -331,7 +274,7 @@ def hl_scan_folder(hl_creds: HLCredentials, hl_client: HiddenlayerServiceClient,
 
 # After scanning, set model version tags in the registry
 
-def tag_model_version_with_scan_results(model_version: ModelVersion, scan_results: ScanResults):
+def tag_model_version_with_scan_results(model_version: ModelVersion, scan_results: ScanResults, hl_console_url: str):
     """Tag the model version in the MLflow model registry with the scan results."""
     clear_tags(model_version)   # erase any stale tags
     status = scan_results.status
@@ -340,8 +283,10 @@ def tag_model_version_with_scan_results(model_version: ModelVersion, scan_result
         set_model_version_tag(model_version, HL_SCAN_THREAT_LEVEL, scan_results.severity)
         set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, scan_results.end_time)
         set_model_version_tag(model_version, HL_SCAN_SCANNER_VERSION, scan_results.version)
-        hl_scan_url = f"https://console.us.hiddenlayer.ai/model-details/{scan_results.model_id}/scans/{scan_results.scan_id}"
-        set_model_version_tag(model_version, HL_SCAN_URL, hl_scan_url)
+        if hl_console_url is not None:
+            # scan_result.inventory sub object is populated only when using Saas scanner
+            hl_scan_url = f"{hl_console_url}/model-details/{scan_results.inventory.model_id}/scans/{scan_results.scan_id}"
+            set_model_version_tag(model_version, HL_SCAN_URL, hl_scan_url)
 
 # COMMAND ----------
 
@@ -349,13 +294,14 @@ def tag_model_version_with_scan_results(model_version: ModelVersion, scan_result
 # Scan the model version and save results as model registry tags.
 
 import tempfile
+import mlflow
 
 # Get job parameters - the model to scan (actually "model version", we'll be sloppy for the sake of brevity)
-full_model_name, model_version_num, hl_api_key_name = get_job_params()
-print(f"Processing model: {full_model_name}, version {model_version_num}")
+config = get_job_params()
+print(f"Processing model: {config.full_model_name}, version {config.model_version_num}")
 
 # Look up the model and get the info we need for scanning
-mv = get_model_version(full_model_name, model_version_num)
+mv = get_model_version(config.full_model_name, config.model_version_num)
 run_id = mv.run_id
 source = mv.source
 
@@ -368,7 +314,7 @@ if not run_id and not source:
 try:
     # Download model artifacts to a temporary location for scanning. Prefix the directory name to identify it as holding
     # scan data. Suffix the directory name for uniqueness and to link it to the model version.
-    with tempfile.TemporaryDirectory(suffix=full_model_name, prefix="hl_scan_", dir="/tmp") as temp_dir:
+    with tempfile.TemporaryDirectory(suffix=config.full_model_name, prefix="hl_scan_", dir="/tmp") as temp_dir:
         client = mlflow_client()
         if run_id:
             # See https://mlflow.org/docs/latest/python_api/mlflow.client.html?highlight=download_artifacts#mlflow.client.MlflowClient.download_artifacts
@@ -377,15 +323,19 @@ try:
             # See https://mlflow.org/docs/latest/python_api/mlflow.artifacts.html?highlight=download_artifacts#mlflow.artifacts.download_artifacts
             local_path = mlflow.artifacts.download_artifacts(artifact_uri=source, dst_path=temp_dir)
         #local_path="/tmp/hl_debug"     # for debugging
-        catalog, schema, _ = parse_full_model_name(full_model_name)
-        hl_creds = get_hl_api_creds(catalog, schema, hl_api_key_name)
-        hl_client = hl_auth(hl_creds)
+        catalog, schema, _ = parse_full_model_name(config.full_model_name)
+        if is_enterprise_scanner(config.hl_api_url):
+            # enterprise scanner does not require creds
+            hl_creds = HLCredentials(client_id="", client_secret="")
+        else:
+            hl_creds = get_hl_api_creds(catalog, schema, config.hl_api_key_name)
+        hl_client = hl_auth(hl_creds, config.hl_api_url)
         print(f"Scanning model artifacts in {local_path}")
         # For testing, bump the version number to simulate a new version: or delete the model card in the console UI
         #model_version_num += 2
         tag_for_scanning(mv)
-        scan_results = hl_scan_folder(hl_creds, hl_client, full_model_name, model_version_num, local_path)
-        tag_model_version_with_scan_results(mv, scan_results)
+        scan_results = hl_scan_folder(hl_client, config.full_model_name, config.model_version_num, local_path)
+        tag_model_version_with_scan_results(mv, scan_results, config.hl_console_url)
 except Exception as e:
     message = f"Unexpected error scanning model: {e}"
     if hasattr(e, 'status') and e.status == 400:
