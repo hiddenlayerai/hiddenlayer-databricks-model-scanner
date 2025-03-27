@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -37,6 +38,35 @@ func init() {
 	rootCmd.AddCommand(autoscanCmd)
 }
 
+func GetOAuthToken(dbxhost string) string {
+	tokenCachePath := inputStringValue("Please enter the full path to your ~/.databricks/token-cache.json ", false, true)
+	tokenCache, err := os.ReadFile(tokenCachePath)
+	if err != nil {
+		fmt.Println("Error reading token-cache.json")
+		return ""
+	}
+
+	var tokenCacheMap map[string]interface{}
+	err = json.Unmarshal(tokenCache, &tokenCacheMap)
+	if err != nil {
+		fmt.Println("Error parsing token-cache.json")
+		return ""
+	}
+
+	//get the token at [tokens][dbxhost][access_token]
+	if tokenCacheMap["tokens"] != nil {
+		tokens := tokenCacheMap["tokens"].(map[string]interface{})
+		if tokens[dbxhost] != nil {
+			token := tokens[dbxhost].(map[string]interface{})
+			if token["access_token"] != nil {
+				return token["access_token"].(string)
+			}
+		}
+	}
+
+	return ""
+}
+
 // configDbxCreds checks if the Databricks credentials were read from the configuration file.
 // If not, then get them from the user and write them into the in-memory config.
 func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
@@ -48,7 +78,14 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 	for {
 		if config.DbxHost == "" || config.DbxToken == "" {
 			config.DbxHost = inputDbxHost()
-			config.DbxToken = inputStringValue("Databricks token", true, false)
+			if config.DbxHost != "" {
+				config.DbxToken = GetOAuthToken(config.DbxHost)
+
+				if config.DbxToken == "" {
+					fmt.Println("No OAuth Token found falling back to PAT")
+					config.DbxToken = inputStringValue("Please enter Databricks personal token or sign in with Databrick's CLI and try again", true, false)
+				}
+			}
 		}
 		if config.DbxHost == "" || config.DbxToken == "" {
 			// indicate host and token are required
