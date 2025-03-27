@@ -25,7 +25,7 @@ You will need the following information for Databricks:
 - Compute - The ID for the cluster running the jobs; must have UC access.
 
 [!NOTE]
-> The Oauth or PAT is used to install the notebooks in your environment and setup the jobs. It is not necessarily the context that the jobs will run as.
+> The OAuth or PAT is used to install the notebooks in your environment and setup the jobs. It is not necessarily the context that the jobs will run as.
 
 Optionally you may choose to have the jobs run in the context of a Service Principal. If you choose this option you will need:
 - ID of the Service Principal
