@@ -38,7 +38,7 @@ func init() {
 	rootCmd.AddCommand(autoscanCmd)
 }
 
-func GetOauthToken(dbxhost string) string {
+func GetOAuthToken(dbxhost string) string {
 	tokenCachePath := inputStringValue("Please enter the full path to your ~/.databricks/token-cache.json ", false, true)
 	tokenCache, err := os.ReadFile(tokenCachePath)
 	if err != nil {
