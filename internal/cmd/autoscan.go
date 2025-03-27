@@ -79,7 +79,7 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 		if config.DbxHost == "" || config.DbxToken == "" {
 			config.DbxHost = inputDbxHost()
 			if config.DbxHost != "" {
-				config.DbxToken = GetOauthToken(config.DbxHost)
+				config.DbxToken = GetOAuthToken(config.DbxHost)
 
 				if config.DbxToken == "" {
 					fmt.Println("No OAuth Token found falling back to PAT")
