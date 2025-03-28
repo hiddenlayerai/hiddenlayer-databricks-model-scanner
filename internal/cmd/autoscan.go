@@ -16,6 +16,7 @@ import (
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/dbxapi"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/hl"
 	"github.com/hiddenlayer-engineering/hl-databricks/internal/utils"
+	"github.com/reugn/go-quartz/quartz"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -166,6 +167,16 @@ func confirmCluster(clusterId string, dbxClient *databricks.WorkspaceClient) boo
 	}
 }
 
+func validateCronExpression(expression string) error {
+	// Try to parse the expression
+	_, err := quartz.NewCronTrigger(expression)
+	if err != nil {
+		return fmt.Errorf("invalid cron expression: %v", err)
+	}
+
+	return nil
+}
+
 func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceClient) {
 	for {
 		if config.DbxClusterId == "" {
@@ -207,8 +218,13 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 			config.DbxMaxActiveScanJobs = inputStringValue("Please enter the Max Number of concurrent scan jobs (default: 10)", false, true, "10")
 		}
 
-		for config.DbxPollingIntervalMinutes == "" {
-			config.DbxPollingIntervalMinutes = inputStringValue("Please enter desired polling interval for the scan job in minutes (default: 5mins)", false, true, "5")
+		for config.DbxPollingQuartzCron == "" {
+			config.DbxPollingQuartzCron = inputStringValue("Please enter desired polling interval for the scan job in minutes (default: 0 0 */12 * * ? ? which is 12hrs)", false, true, "0 0 */12 * * ?")
+			err := validateCronExpression(config.DbxPollingQuartzCron)
+			if err != nil {
+				fmt.Printf("Error validating cron expression, please try again: %v\n", err)
+				config.DbxPollingQuartzCron = ""
+			}
 		}
 
 		if len(config.DbxSchemas) == 0 {
