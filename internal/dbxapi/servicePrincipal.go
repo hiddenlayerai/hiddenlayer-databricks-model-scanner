@@ -6,15 +6,15 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
 )
 
 type ServicePrincipal struct {
-	ID   string `json:"id"`
-	Name string `json:"displayName"`
+	ID            string `json:"id"`
+	Name          string `json:"displayName"`
+	ApplicationId string `json:"applicationId"`
 }
 
-func ServicePrincipalExists(servicePrincipalId string, dbxHost string, dbxToken string) bool {
+func ServicePrincipalExists(servicePrincipalApplicationId string, dbxHost string, dbxToken string) bool {
 	url := fmt.Sprintf("%s/api/2.0/preview/scim/v2/ServicePrincipals", dbxHost)
 
 	client := &http.Client{}
@@ -45,7 +45,7 @@ func ServicePrincipalExists(servicePrincipalId string, dbxHost string, dbxToken 
 	}
 
 	for _, sp := range data.Resources {
-		if sp.ID == strings.ToLower(servicePrincipalId) {
+		if sp.ApplicationId == servicePrincipalApplicationId {
 			return true
 		}
 	}

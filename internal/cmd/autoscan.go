@@ -40,8 +40,19 @@ func init() {
 }
 
 func GetOAuthToken(dbxhost string) string {
-	tokenCachePath := inputStringValue("Please enter the full path to your ~/.databricks/token-cache.json ", false, true)
-	tokenCache, err := os.ReadFile(tokenCachePath)
+	usersHomeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("Error getting user home directory")
+		usersHomeDir = ""
+	}
+	usersDatabrickTokenCache := usersHomeDir + "/.databricks/token-cache.json"
+	tokenCachePath := inputStringValue("Please enter the full path to your Databricks token cache (default: ~/.databricks/token-cache.json)", false, true, usersDatabrickTokenCache)
+	token := GetOAuthTokenFromFile(tokenCachePath, dbxhost)
+	return token
+}
+
+func GetOAuthTokenFromFile(path string, dbxHost string) string {
+	tokenCache, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Println("Error reading token-cache.json")
 		return ""
@@ -57,14 +68,13 @@ func GetOAuthToken(dbxhost string) string {
 	//get the token at [tokens][dbxhost][access_token]
 	if tokenCacheMap["tokens"] != nil {
 		tokens := tokenCacheMap["tokens"].(map[string]interface{})
-		if tokens[dbxhost] != nil {
-			token := tokens[dbxhost].(map[string]interface{})
+		if tokens[dbxHost] != nil {
+			token := tokens[dbxHost].(map[string]interface{})
 			if token["access_token"] != nil {
 				return token["access_token"].(string)
 			}
 		}
 	}
-
 	return ""
 }
 
@@ -85,7 +95,20 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 				if config.DbxToken == "" {
 					fmt.Println("No OAuth Token found falling back to PAT")
 					config.DbxToken = inputStringValue("Please enter Databricks personal token or sign in with Databrick's CLI and try again", true, false)
+				} else {
+					fmt.Println("Using OAuth Token from file")
 				}
+			}
+		}
+		// check if token passed in is a file
+		if stats, err := os.Stat(config.DbxToken); err == nil && !stats.IsDir() {
+			token := GetOAuthTokenFromFile(config.DbxToken, config.DbxHost)
+			if token != "" {
+				fmt.Println("Using OAuth Token from file")
+				config.DbxToken = token
+			} else {
+				fmt.Println("No OAuth Token found falling back to PAT")
+				config.DbxToken = inputStringValue("Please enter Databricks personal token or sign in with Databrick's CLI and try again", true, false)
 			}
 		}
 		if config.DbxHost == "" || config.DbxToken == "" {
@@ -98,7 +121,7 @@ func configDbxCreds(config *utils.Config) *databricks.WorkspaceClient {
 		var err error
 		dbxClient, err = dbx.Auth(config.DbxHost, config.DbxToken)
 		if err == nil {
-			fmt.Println("Successfully authenticated to Databricks")
+			fmt.Println("Successfully authenticated to Databricks at " + config.DbxHost)
 			break
 		} else {
 			fmt.Printf("Error authenticating to Databricks: %v. Please try again.\n", err)
@@ -199,7 +222,7 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 		// Get the Databricks service principal to run the job as.
 		// This is optional, so only prompt if it's not already in the configuration.
 		if config.DbxRunAs == "" {
-			config.DbxRunAs = inputStringValue("Service principal ID to run the job as (optional)", false, true)
+			config.DbxRunAs = inputStringValue("Service principal application ID to run the job as (optional)", false, true)
 			// Check that the service principal exists in Databricks. If not, keep asking until it does or a blank value is entered.
 			for config.DbxRunAs != "" {
 				fmt.Println("Checking service principal in Databricks..." + config.DbxRunAs)
@@ -210,6 +233,14 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 					fmt.Printf("Service principal %s not found in Databricks. Please try again.\n", config.DbxRunAs)
 					config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
 				}
+			}
+		} else {
+			if !dbxapi.ServicePrincipalExists(config.DbxRunAs, config.DbxHost, config.DbxToken) {
+				fmt.Printf("Service principal %s not found in Databricks. Please try again.\n", config.DbxRunAs)
+				config.DbxRunAs = ""
+				continue
+			} else {
+				fmt.Printf("Confirming service principal '%s' found in Databricks\n", config.DbxRunAs)
 			}
 		}
 
