@@ -174,6 +174,11 @@ func uploadPythonFile(client *databricks.WorkspaceClient, source string, dest st
 	}
 	err = client.Workspace.Import(context.Background(), importRequest)
 	if err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			// If the file already exists, we can ignore the error
+			fmt.Printf("File %s already exists in workspace, skipping upload\n", dest)
+			return
+		}
 		log.Fatalf("Error importing Python file %s to workspace file %s: %v", source, dest, err)
 	}
 }

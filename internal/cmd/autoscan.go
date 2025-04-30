@@ -199,11 +199,10 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 		// Get the Databricks service principal to run the job as.
 		// This is optional, so only prompt if it's not already in the configuration.
 		if config.DbxRunAs == "" {
-			config.DbxRunAs = inputStringValue("Service principal to run the job as (optional)", false, true)
+			config.DbxRunAs = inputStringValue("Service principal ID to run the job as (optional)", false, true)
 			// Check that the service principal exists in Databricks. If not, keep asking until it does or a blank value is entered.
 			for config.DbxRunAs != "" {
 				fmt.Println("Checking service principal in Databricks..." + config.DbxRunAs)
-
 				if servicePrincipalExists := dbxapi.ServicePrincipalExists(config.DbxRunAs, config.DbxHost, config.DbxToken); servicePrincipalExists {
 					fmt.Printf("Confirming service principal '%s' found in Databricks\n", config.DbxRunAs)
 					break

@@ -14,7 +14,7 @@ type ServicePrincipal struct {
 	Name string `json:"displayName"`
 }
 
-func ServicePrincipalExists(servicePrincipalName string, dbxHost string, dbxToken string) bool {
+func ServicePrincipalExists(servicePrincipalId string, dbxHost string, dbxToken string) bool {
 	url := fmt.Sprintf("%s/api/2.0/preview/scim/v2/ServicePrincipals", dbxHost)
 
 	client := &http.Client{}
@@ -45,7 +45,7 @@ func ServicePrincipalExists(servicePrincipalName string, dbxHost string, dbxToke
 	}
 
 	for _, sp := range data.Resources {
-		if strings.ToLower(sp.Name) == strings.ToLower(servicePrincipalName) {
+		if sp.ID == strings.ToLower(servicePrincipalId) {
 			return true
 		}
 	}
