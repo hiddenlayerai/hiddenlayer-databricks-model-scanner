@@ -43,6 +43,10 @@ if not importlib.util.find_spec("hiddenlayer"):
 
 # COMMAND ----------
 
+# MAGIC %restart_python
+
+# COMMAND ----------
+
 # Import HL code that is shared across notebooks
 
 from hl_common import *
