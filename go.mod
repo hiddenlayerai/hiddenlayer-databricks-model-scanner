@@ -4,6 +4,7 @@ go 1.23.1
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/reugn/go-quartz v0.14.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	golang.org/x/term v0.30.0
@@ -22,7 +23,6 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
-	github.com/reugn/go-quartz v0.14.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
@@ -40,7 +40,7 @@ require (
 )
 
 require (
-	github.com/databricks/databricks-sdk-go v0.61.0
+	github.com/databricks/databricks-sdk-go v0.66.0
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
