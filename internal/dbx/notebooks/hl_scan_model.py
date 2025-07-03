@@ -37,7 +37,7 @@ from IPython.display import display, Javascript
 
 if not importlib.util.find_spec("hiddenlayer"):
     # same as "%pip install" but we can't do that within an if statement
-    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.5')
+    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.9')
     # same as "%restart_python" but we can't do that within an if statement
     display(Javascript('Jupyter.notebook.kernel.restart()'))
 
@@ -259,7 +259,7 @@ def hl_scan_folder(hl_client: HiddenlayerServiceClient,
     """Scan model artifacts in the local directory using the credentials. Return the scan results."""
     hl_model_name = _reverse_full_model_name(full_model_name)
     return hl_client.model_scanner.scan_folder(
-        model_name=hl_model_name, model_version=str(model_version_num), path=local_dir)
+        model_name=hl_model_name, model_version=str(model_version_num), path=local_dir, request_source="Integration", origin="Databricks")
 
 # Manual test
 # import tempfile
