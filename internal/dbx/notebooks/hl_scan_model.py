@@ -37,7 +37,7 @@ from IPython.display import display, Javascript
 
 if not importlib.util.find_spec("hiddenlayer"):
     # same as "%pip install" but we can't do that within an if statement
-    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.9')
+    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.10')
     # same as "%restart_python" but we can't do that within an if statement
     display(Javascript('Jupyter.notebook.kernel.restart()'))
 
@@ -59,6 +59,7 @@ class Configuration:
     model_version_num: str
     hl_api_key_name: str
     hl_api_url: str
+    hl_auth_url: str
     hl_console_url: str
 
     def __init__(
@@ -67,12 +68,14 @@ class Configuration:
         model_version_num,
         hl_api_key_name,
         hl_api_url,
+        hl_auth_url,
         hl_console_url,
     ):
         self.full_model_name = full_model_name
         self.model_version_num = model_version_num
         self.hl_api_key_name = hl_api_key_name
         self.hl_api_url = hl_api_url
+        self.hl_auth_url = hl_auth_url
         self.hl_console_url = hl_console_url
 
 # In production, parameters are passed in.
@@ -96,6 +99,9 @@ def get_job_params() -> Configuration:
     hl_api_url = widgets_to_values["hl_api_url"]
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
+    hl_auth_url = widgets_to_values["hl_auth_url"]
+    assert hl_auth_url is not None, "hl_auth_url is a required job parameter"
+
     hl_console_url = None
     hl_api_key_name = None
 
@@ -115,7 +121,7 @@ def get_job_params() -> Configuration:
         )
 
     return Configuration(
-        full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_console_url
+        full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_auth_url, hl_console_url
     )
 
 # COMMAND ----------
@@ -240,10 +246,11 @@ def get_hl_api_creds(catalog: str, schema: str, hl_api_key_name: str):
 from hiddenlayer import HiddenlayerServiceClient
 from hiddenlayer.sdk.models import ScanResults
 
-def hl_auth(hl_creds: HLCredentials, hl_api_url: str) -> HiddenlayerServiceClient:
+def hl_auth(hl_creds: HLCredentials, hl_api_url: str, hl_auth_url: str) -> HiddenlayerServiceClient:
     """Return a HiddenlayerServiceClient authenticated with the given credentials."""
     hl_client = HiddenlayerServiceClient(
         host=hl_api_url,
+        auth_url=hl_auth_url,
         api_id=hl_creds.client_id,
         api_key=hl_creds.client_secret)
     return hl_client
@@ -333,7 +340,7 @@ try:
             hl_creds = HLCredentials(client_id="", client_secret="")
         else:
             hl_creds = get_hl_api_creds(catalog, schema, config.hl_api_key_name)
-        hl_client = hl_auth(hl_creds, config.hl_api_url)
+        hl_client = hl_auth(hl_creds, config.hl_api_url, config.hl_auth_url)
         print(f"Scanning model artifacts in {local_path}")
         # For testing, bump the version number to simulate a new version: or delete the model card in the console UI
         #model_version_num += 2

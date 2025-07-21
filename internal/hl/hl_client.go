@@ -7,11 +7,12 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 )
 
 // Auth authenticates with the HiddenLayer API and returns an access token.
-func Auth(apiId string, apiKey string) (string, error) {
+func Auth(authUrl string, apiId string, apiKey string) (string, error) {
 	transport := &http.Transport{
 		// Set the maximum number of idle connections
 		MaxIdleConns: 10,
@@ -27,7 +28,7 @@ func Auth(apiId string, apiKey string) (string, error) {
 		Timeout:   15 * time.Minute,
 	}
 
-	accessToken, err := GetJwt(httpClient, apiId, apiKey)
+	accessToken, err := GetJwt(httpClient, authUrl, apiId, apiKey)
 	if err != nil {
 		return "", err
 	}
@@ -35,12 +36,15 @@ func Auth(apiId string, apiKey string) (string, error) {
 }
 
 // GetJwt authenticates with the HiddenLayer API and returns a JWT token.
-func GetJwt(httpClient *http.Client, apiId string, apiKey string) (string, error) {
+func GetJwt(httpClient *http.Client, authUrl string, apiId string, apiKey string) (string, error) {
 	// Hardwire the production URL for now.
 	// (The AI PC demo knows how to use staging also, we could add that later.)
-	const authUrl = "https://auth.hiddenlayer.ai"
-	url := fmt.Sprintf("%s/oauth2/token?grant_type=client_credentials", authUrl)
-	req, err := http.NewRequest("POST", url, nil)
+	authUrl, err := url.JoinPath(authUrl, "oauth2/token")
+	authUrl += "?grant_type=client_credentials"
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("POST", authUrl, nil)
 	if err != nil {
 		return "", err
 	}
@@ -55,9 +59,8 @@ func GetJwt(httpClient *http.Client, apiId string, apiKey string) (string, error
 	defer CloseBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(
-			fmt.Sprintf("Unable to get authentication credentials for the HiddenLayer API: %d: %s",
-				resp.StatusCode, resp.Status))
+		return "", fmt.Errorf("unable to get authentication credentials for the HiddenLayer API: %d: %s",
+			resp.StatusCode, resp.Status)
 	}
 
 	var result map[string]interface{}

@@ -208,6 +208,7 @@ func scheduleMonitorJob(ctx context.Context, client *databricks.WorkspaceClient,
 		{Name: "schemas", Default: string(catalogAndSchemasParam)},
 		{Name: "hl_api_key_name", Default: config.HlApiKeyName},
 		{Name: "hl_api_url", Default: config.HlApiUrl},
+		{Name: "hl_auth_url", Default: config.HlAuthUrl},
 		{Name: "hl_console_url", Default: config.HlConsoleUrl},
 	}
 

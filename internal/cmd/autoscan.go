@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,8 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -19,6 +22,8 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var autoscanCmd = &cobra.Command{
@@ -137,12 +142,11 @@ func retrieveSchemaFromCommandLine(dbxClient *databricks.WorkspaceClient) utils.
 	for {
 		var config utils.CatalogSchemaConfig
 		config.Catalog = inputStringValue("Catalog in Databricks Unity Catalog", false, false)
-		config.Schema = inputStringValue("Schema with models to scan, within the catalog", false, false)
-
-		if config.Catalog == "" || config.Schema == "" {
-			// intentional user exist
+		if config.Catalog == "" {
+			// intentional user exit
 			return utils.CatalogSchemaConfig{}
 		}
+		config.Schema = inputStringValue("Schema with models to scan, within the catalog", false, false)
 
 		configOk := confirmSchema(config, dbxClient)
 		if configOk {
@@ -200,14 +204,13 @@ func validateCronExpression(expression string) error {
 	return nil
 }
 
-func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceClient) {
+func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceClient) error {
 	for {
 		if config.DbxClusterId == "" {
 			clusterId := retrieveClusterFromCommandLine(dbxClient)
 			if clusterId == "" {
 				// intentional user exit
-				fmt.Println("No cluster to run monitoring job, exiting")
-				return
+				log.Fatal("No cluster to run monitoring job, exiting")
 			}
 			config.DbxClusterId = clusterId
 		} else {
@@ -262,13 +265,16 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 				fmt.Println("Add a new schema to monitor, or press Enter to finish")
 				schema := retrieveSchemaFromCommandLine(dbxClient)
 				if schema == (utils.CatalogSchemaConfig{}) {
+					if len(config.DbxSchemas) == 0 {
+						log.Fatal("No schemas to monitor, exiting")
+					}
 					// intentional user exit
 					break
 				}
 				// schema will have been validated
 				config.DbxSchemas = append(config.DbxSchemas, schema)
 			}
-			return
+			return nil
 		}
 
 		var validSchemas []utils.CatalogSchemaConfig
@@ -287,14 +293,52 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 				validSchemas = append(validSchemas, schema)
 			}
 		}
+		if len(validSchemas) == 0 {
+			log.Fatal("No schemas to monitor, exiting")
+		}
 		config.DbxSchemas = validSchemas
-		return
+		return nil
 	}
 }
 
-func configHlCreds(config *utils.Config) {
+var regions = []string{"US", "EU", "CUSTOM"}
+var datbricksSecretNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,128}$`)
+
+func retrieveHLApiUrl() (string, string, string, error) {
+	region := ""
+	for {
+		region = inputStringValue("Region of HiddenLayer API US/EU/CUSTOM (default: US)", false, false, "US")
+		region = cases.Upper(language.English).String(region)
+		if slices.Contains(regions, region) {
+			break
+		} else {
+			fmt.Println("Invalid region. Please try again.")
+		}
+	}
+	switch region {
+	case "US":
+		return "https://api.us.hiddenlayer.ai", "https://auth.hiddenlayer.ai", "https://console.us.hiddenlayer.ai", nil
+	case "EU":
+		return "https://api.eu.hiddenlayer.ai", "https://auth.eu.hiddenlayer.ai", "https://console.eu.hiddenlayer.ai", nil
+	case "CUSTOM":
+		apiUrl := inputStringValue("HiddenLayer API URL (default: https://api.us.hiddenlayer.ai)", false, false, "https://api.us.hiddenlayer.ai")
+		authUrl := inputStringValue("HiddenLayer Auth URL (default: https://auth.hiddenlayer.ai)", false, false, "https://auth.hiddenlayer.ai")
+		consoleUrl := inputStringValue("HiddenLayer Console URL (default: https://console.us.hiddenlayer.ai)", false, false, "https://console.us.hiddenlayer.ai")
+		return apiUrl, authUrl, consoleUrl, nil
+	default:
+		return "", "", "", fmt.Errorf("invalid region: %s", region)
+	}
+}
+
+func configHlCreds(config *utils.Config) error {
 	if config.HlApiUrl == "" {
-		config.HlApiUrl = inputStringValue("HiddenLayer API URL (default: https://api.us.hiddenlayer.ai)", false, false, "https://api.us.hiddenlayer.ai")
+		apiUrl, authUrl, consoleUrl, err := retrieveHLApiUrl()
+		if err != nil {
+			log.Fatalf("Error retrieving HiddenLayer API URL: %v", err)
+		}
+		config.HlApiUrl = apiUrl
+		config.HlAuthUrl = authUrl
+		config.HlConsoleUrl = consoleUrl
 	}
 	hlApi, err := url.Parse(config.HlApiUrl)
 	if err != nil {
@@ -305,9 +349,24 @@ func configHlCreds(config *utils.Config) {
 
 	// Only need HL Api keys if using a Saas product
 	if (config.HlApiKeyName == "" || config.HlClientID == "" || config.HlClientSecret == "") && !enterpriseScanner {
-		config.HlApiKeyName = inputStringValue("HiddenLayer API key name", false, false)
 		config.HlClientID = inputStringValue("HiddenLayer client ID", false, false)
 		config.HlClientSecret = inputStringValue("HiddenLayer client secret", true, false)
+		for {
+			config.HlApiKeyName = inputStringValue("Name of Databricks Secret to create (to store HiddenLayer API Credentials)", false, false)
+			if config.HlApiKeyName == "" {
+				fmt.Println("No Secret key name provided. Please try again.")
+				continue
+			}
+			if len(config.HlApiKeyName) > 128 {
+				fmt.Println("Secret key name must be less than 128 characters. Please try again.")
+				continue
+			}
+			if !datbricksSecretNameRegex.MatchString(config.HlApiKeyName) {
+				fmt.Println("Secret key name must contain only letters, numbers, underscores, and periods. Please try again.")
+				continue
+			}
+			break
+		}
 	}
 
 	// console url only needed if using a Saas product
@@ -317,13 +376,14 @@ func configHlCreds(config *utils.Config) {
 
 	// Validate the HiddenLayer credentials by authenticating to the HiddenLayer API (if Saas)
 	if !enterpriseScanner {
-		_, err := hl.Auth(config.HlClientID, config.HlClientSecret)
+		_, err := hl.Auth(config.HlAuthUrl, config.HlClientID, config.HlClientSecret)
 		if err == nil {
 			fmt.Println("Successfully authenticated to HiddenLayer")
 		} else {
 			log.Fatalf("Error authenticating to HiddenLayer: %v", err)
 		}
 	}
+	return nil
 }
 
 // inputStringValue prompts the user to enter a string value for a given name.
@@ -342,7 +402,7 @@ func inputStringValue(name string, hideIt bool, allowEmpty bool, defaultValue ..
 		if hideIt {
 			value, err = readPassword()
 		} else {
-			_, err = fmt.Scanln(&value)
+			value, err = bufio.NewReader(os.Stdin).ReadString('\n')
 		}
 		if err != nil {
 			if err.Error() == "unexpected newline" {
@@ -361,6 +421,14 @@ func inputStringValue(name string, hideIt bool, allowEmpty bool, defaultValue ..
 		value = strings.TrimSpace(value) // Remove leading/trailing whitespace
 		if value != "" {
 			break
+		} else {
+			if len(defaultValue) > 0 {
+				return defaultValue[0]
+			}
+			if allowEmpty {
+				fmt.Println("No input provided for optional parameter. Continuing...")
+			}
+			return ""
 		}
 	}
 	return value
