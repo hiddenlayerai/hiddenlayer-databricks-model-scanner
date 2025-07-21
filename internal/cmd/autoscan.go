@@ -204,7 +204,7 @@ func validateCronExpression(expression string) error {
 	return nil
 }
 
-func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceClient) error {
+func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceClient) {
 	for {
 		if config.DbxClusterId == "" {
 			clusterId := retrieveClusterFromCommandLine(dbxClient)
@@ -274,7 +274,7 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 				// schema will have been validated
 				config.DbxSchemas = append(config.DbxSchemas, schema)
 			}
-			return nil
+			return
 		}
 
 		var validSchemas []utils.CatalogSchemaConfig
@@ -297,7 +297,7 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 			log.Fatal("No schemas to monitor, exiting")
 		}
 		config.DbxSchemas = validSchemas
-		return nil
+		return
 	}
 }
 
