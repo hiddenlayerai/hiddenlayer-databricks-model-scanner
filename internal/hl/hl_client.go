@@ -37,8 +37,6 @@ func Auth(authUrl string, apiId string, apiKey string) (string, error) {
 
 // GetJwt authenticates with the HiddenLayer API and returns a JWT token.
 func GetJwt(httpClient *http.Client, authUrl string, apiId string, apiKey string) (string, error) {
-	// Hardwire the production URL for now.
-	// (The AI PC demo knows how to use staging also, we could add that later.)
 	authUrl, err := url.JoinPath(authUrl, "oauth2/token")
 	authUrl += "?grant_type=client_credentials"
 	if err != nil {

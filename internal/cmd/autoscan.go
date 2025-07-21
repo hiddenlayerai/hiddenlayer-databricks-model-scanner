@@ -302,7 +302,7 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 }
 
 var regions = []string{"US", "EU", "CUSTOM"}
-var datbricksSecretNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,128}$`)
+var databricksSecretNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,128}$`)
 
 func retrieveHLApiUrl() (string, string, string, error) {
 	region := ""
@@ -330,7 +330,7 @@ func retrieveHLApiUrl() (string, string, string, error) {
 	}
 }
 
-func configHlCreds(config *utils.Config) error {
+func configHlCreds(config *utils.Config) {
 	if config.HlApiUrl == "" {
 		apiUrl, authUrl, consoleUrl, err := retrieveHLApiUrl()
 		if err != nil {
@@ -361,7 +361,7 @@ func configHlCreds(config *utils.Config) error {
 				fmt.Println("Secret key name must be less than 128 characters. Please try again.")
 				continue
 			}
-			if !datbricksSecretNameRegex.MatchString(config.HlApiKeyName) {
+			if !databricksSecretNameRegex.MatchString(config.HlApiKeyName) {
 				fmt.Println("Secret key name must contain only letters, numbers, underscores, and periods. Please try again.")
 				continue
 			}
@@ -383,7 +383,6 @@ func configHlCreds(config *utils.Config) error {
 			log.Fatalf("Error authenticating to HiddenLayer: %v", err)
 		}
 	}
-	return nil
 }
 
 // inputStringValue prompts the user to enter a string value for a given name.
@@ -405,16 +404,6 @@ func inputStringValue(name string, hideIt bool, allowEmpty bool, defaultValue ..
 			value, err = bufio.NewReader(os.Stdin).ReadString('\n')
 		}
 		if err != nil {
-			if err.Error() == "unexpected newline" {
-				if len(defaultValue) > 0 {
-					return defaultValue[0]
-				} else {
-					if allowEmpty {
-						fmt.Println("No input provided for optional parameter. Continuing...")
-					}
-					return ""
-				}
-			}
 			fmt.Printf("Error reading %s: %v. Please try again.\n", name, err)
 			continue
 		}
