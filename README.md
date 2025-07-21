@@ -40,7 +40,7 @@ The CLI can be configured via a [configuration file](#configuration-file). If a 
 
 ## Supported Products
 
-The Databricks autoscan is capable of interfacing with Hiddenlayer's Saas Model Scanner as well as the On-Premise Enterprise Model Scanner. Configuration will default to the Saas offering unless the URL for an Enterprise Model Scanner is provided. The URL can be provided by specifying the Region as CUSTOM when prompted. Alternatively, if configuring via [configuration file](#configuration-file) `hl_api_url` should be set to the URL of Enterprise Model Scanner.
+The Databricks autoscan is capable of interfacing with Hiddenlayer's Saas Model Scanner as well as the On-Premise Enterprise Model Scanner. Configuration will default to the Saas offering unless the URL for an Enterprise Model Scanner is provided. The URL can be provided by specifying the Region as CUSTOM when prompted. Alternatively, if configuring via [configuration file](#configuration-file) `hl_api_url` should be set to the URL of the Enterprise Model Scanner.
 
 ## Configuration File
 
