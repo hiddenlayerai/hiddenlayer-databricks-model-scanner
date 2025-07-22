@@ -198,7 +198,7 @@ func validateCronExpression(expression string) error {
 	// Try to parse the expression
 	_, err := quartz.NewCronTrigger(expression)
 	if err != nil {
-		return fmt.Errorf("invalid cron expression: %v", err)
+		return fmt.Errorf("invalid quartz cron expression: %v", err)
 	}
 
 	return nil
@@ -252,7 +252,8 @@ func configDbxResources(config *utils.Config, dbxClient *databricks.WorkspaceCli
 		}
 
 		for config.DbxPollingQuartzCron == "" {
-			config.DbxPollingQuartzCron = inputStringValue("Please enter desired polling interval for the scan job in minutes (default: 0 0 */12 * * ? ? which is 12hrs)", false, true, "0 0 */12 * * ?")
+			fmt.Println("Quartz Expression format: https://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html")
+			config.DbxPollingQuartzCron = inputStringValue("desired polling interval for the scan job in quartz cron format (default: 0 0 */12 * * ? which is 12hrs)", false, true, "0 0 */12 * * ?")
 			err := validateCronExpression(config.DbxPollingQuartzCron)
 			if err != nil {
 				fmt.Printf("Error validating cron expression, please try again: %v\n", err)
