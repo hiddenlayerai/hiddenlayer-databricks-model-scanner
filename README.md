@@ -50,4 +50,4 @@ An example configuration can be found at [config_template.yaml](https://github.c
 
 ## Quartz Cron Format
 
-The polling interval is set via a quartz expression. Although these expressions look like cron, there are subtle differences, namely that they start with seconds not minutes. This format is explained [here](https://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html) 
+The polling interval is set via a quartz expression. Although these expressions look like cron, there are subtle differences. The main difference being that they start with seconds not minutes. This format is explained [here](https://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html) 
