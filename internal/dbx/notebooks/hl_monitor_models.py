@@ -87,11 +87,13 @@ class Configuration:
     catalogs_and_schemas: List[CatalogSchemaConfiguration]
     hl_api_key_name: str
     hl_api_url: str
+    hl_auth_url: str
     hl_console_url: str
-    def __init__(self, catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_console_url):
+    def __init__(self, catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_auth_url, hl_console_url):
         self.catalogs_and_schemas = catalogs_and_schemas
         self.hl_api_key_name = hl_api_key_name
         self.hl_api_url = hl_api_url
+        self.hl_auth_url = hl_auth_url
         self.hl_console_url = hl_console_url
 
 def get_job_params() -> Configuration:
@@ -114,6 +116,9 @@ def get_job_params() -> Configuration:
     hl_api_url = dbutils.widgets.get("hl_api_url")
     assert hl_api_url is not None, "hl_api_url is a required job parameter"
 
+    hl_auth_url = dbutils.widgets.get("hl_auth_url")
+    assert hl_auth_url is not None, "hl_auth_url is a required job parameter"
+
     hl_console_url = None
     hl_api_key_name = None
 
@@ -125,7 +130,7 @@ def get_job_params() -> Configuration:
         hl_console_url = dbutils.widgets.get("hl_console_url")
         assert hl_console_url is not None, "hl_console_url is a required job parameter"
 
-    return Configuration(catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_console_url)
+    return Configuration(catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_auth_url, hl_console_url)
 
 
 # COMMAND ----------
@@ -333,7 +338,7 @@ from datetime import datetime
 from mlflow.entities.model_registry import ModelVersion
 from pathlib import Path
 
-def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_console_url: str, timeout_minutes: int) -> int:
+def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_auth_url: str, hl_console_url: str, timeout_minutes: int) -> int:
     """Run a scan job on a model version. Don't wait for it to finish. Return the run_id."""
     job_name = f"hl_scan_{mv.name}.{mv.version}"
     notebook_path = Path(getcwd()) / HL_SCAN_NOTEBOOK
@@ -342,6 +347,7 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_conso
     parameters={"full_model_name": mv.name,
                 "model_version_num": str(mv.version),
                 "hl_api_url": hl_api_url,
+                "hl_auth_url": hl_auth_url,
                 }
     # optional parameters only needed by Saas scanner workflows
     if hl_console_url:
@@ -447,5 +453,5 @@ max_new_jobs = max(MAX_ACTIVE_SCAN_JOBS - num_active_jobs, 0)
 num_new_jobs = min(max_new_jobs, len(models_to_scan))
 for i in range(num_new_jobs):
     mv = models_to_scan[i]
-    run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+    run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_auth_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
     print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")

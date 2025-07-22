@@ -40,10 +40,14 @@ The CLI can be configured via a [configuration file](#configuration-file). If a 
 
 ## Supported Products
 
-The Databricks autoscan is capable of interfacing with Hiddenlayer's Saas Model Scanner as well as the On-Premise Enterprise Model Scanner. Configuration will default to the Saas offering unless the URL for an Enterprise Model Scanner is provided.
+The Databricks autoscan is capable of interfacing with Hiddenlayer's Saas Model Scanner as well as the On-Premise Enterprise Model Scanner. Configuration will default to the Saas offering unless the URL for an Enterprise Model Scanner is provided. The URL can be provided by specifying the Region as CUSTOM when prompted. Alternatively, if configuring via [configuration file](#configuration-file) `hl_api_url` should be set to the URL of the Enterprise Model Scanner.
 
 ## Configuration File
 
 The Databricks autoscan can be driven by a yaml config file. This file should be placed at $HOME/.hl/hldbx.yaml.
 
 An example configuration can be found at [config_template.yaml](https://github.com/hiddenlayerai/hiddenlayer-databricks-model-scanner/blob/main/config_template.yaml)
+
+## Quartz Cron Format
+
+The polling interval is set via a quartz expression. Although these expressions look like cron, there are subtle differences. The main difference being that they start with seconds not minutes. This format is explained [here](https://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html) 
