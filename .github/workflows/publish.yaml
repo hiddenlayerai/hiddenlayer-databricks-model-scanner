@@ -16,7 +16,7 @@ jobs:
       statuses: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # needed by gorelease changelog to work properly
       - name: Harden Runner
