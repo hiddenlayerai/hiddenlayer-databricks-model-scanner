@@ -97,11 +97,15 @@ def get_job_params() -> Configuration:
     ), "model_version_num is a required job parameter"
 
     hl_api_url = widgets_to_values["hl_api_url"]
+    hl_environment = None
+    if "hl_environment" in widgets_to_values.keys():
+        hl_environment = widgets_to_values["hl_environment"]
 
-    hl_environment = widgets_to_values["hl_environment"]
     if hl_environment is None and hl_api_url is None:
+        # default to prod-us environment
         hl_environment = "prod-us"
     elif hl_environment is None:
+        # an api url was provided
         # determine if api url is pointing at a HL Saas API or an on prem scanner
         if is_enterprise_scanner(hl_api_url):
             hl_environment = None
@@ -343,9 +347,11 @@ try:
         client = mlflow_client()
         if run_id:
             # See https://mlflow.org/docs/latest/python_api/mlflow.client.html?highlight=download_artifacts#mlflow.client.MlflowClient.download_artifacts
+            print(f"Downloading model artifacts from run {run_id}")
             local_path = client.download_artifacts(run_id=run_id, path="", dst_path=temp_dir)
         else:
             # See https://mlflow.org/docs/latest/python_api/mlflow.artifacts.html?highlight=download_artifacts#mlflow.artifacts.download_artifacts
+            print(f"Downloading model artifacts from source {source}")
             local_path = mlflow.artifacts.download_artifacts(artifact_uri=source, dst_path=temp_dir)
         #local_path="/tmp/hl_debug"     # for debugging
         catalog, schema, _ = parse_full_model_name(config.full_model_name)
