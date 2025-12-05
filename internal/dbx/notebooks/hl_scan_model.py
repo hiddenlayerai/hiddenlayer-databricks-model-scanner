@@ -37,7 +37,7 @@ from IPython.display import display, Javascript
 
 if not importlib.util.find_spec("hiddenlayer"):
     # same as "%pip install" but we can't do that within an if statement
-    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==2.0.10')
+    get_ipython().run_line_magic('pip', 'install hiddenlayer-sdk==3.2.0')
     # same as "%restart_python" but we can't do that within an if statement
     display(Javascript('Jupyter.notebook.kernel.restart()'))
 
@@ -59,7 +59,7 @@ class Configuration:
     model_version_num: str
     hl_api_key_name: str
     hl_api_url: str
-    hl_auth_url: str
+    hl_environment: str
     hl_console_url: str
 
     def __init__(
@@ -68,14 +68,14 @@ class Configuration:
         model_version_num,
         hl_api_key_name,
         hl_api_url,
-        hl_auth_url,
         hl_console_url,
+        hl_environment,
     ):
         self.full_model_name = full_model_name
         self.model_version_num = model_version_num
         self.hl_api_key_name = hl_api_key_name
         self.hl_api_url = hl_api_url
-        self.hl_auth_url = hl_auth_url
+        self.hl_environment = hl_environment
         self.hl_console_url = hl_console_url
 
 # In production, parameters are passed in.
@@ -97,10 +97,24 @@ def get_job_params() -> Configuration:
     ), "model_version_num is a required job parameter"
 
     hl_api_url = widgets_to_values["hl_api_url"]
-    assert hl_api_url is not None, "hl_api_url is a required job parameter"
+    hl_environment = None
+    if "hl_environment" in widgets_to_values.keys():
+        hl_environment = widgets_to_values["hl_environment"]
 
-    hl_auth_url = widgets_to_values["hl_auth_url"]
-    assert hl_auth_url is not None, "hl_auth_url is a required job parameter"
+    if hl_environment is None and hl_api_url is None:
+        # default to prod-us environment
+        hl_environment = "prod-us"
+    elif hl_environment is None:
+        # an api url was provided
+        # determine if api url is pointing at a HL Saas API or an on prem scanner
+        if is_enterprise_scanner(hl_api_url):
+            hl_environment = None
+        elif hl_api_url == "https://api.eu.hiddenlayer.ai":
+            hl_environment = "prod-eu"
+        elif hl_api_url == "https://api.us.hiddenlayer.ai":
+            hl_environment = "prod-us"
+        else:
+            raise ValueError("Invalid hl_api_url")
 
     hl_console_url = None
     hl_api_key_name = None
@@ -121,7 +135,7 @@ def get_job_params() -> Configuration:
         )
 
     return Configuration(
-        full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_auth_url, hl_console_url
+        full_model_name, model_version_num, hl_api_key_name, hl_api_url, hl_console_url, hl_environment
     )
 
 # COMMAND ----------
@@ -243,16 +257,20 @@ def get_hl_api_creds(catalog: str, schema: str, hl_api_key_name: str):
 
 # Scan the model folder using the HiddenLayer API
 
-from hiddenlayer import HiddenlayerServiceClient
-from hiddenlayer.sdk.models import ScanResults
+from hiddenlayer import HiddenLayer
+from hiddenlayer.types.scans import ScanReport
 
-def hl_auth(hl_creds: HLCredentials, hl_api_url: str, hl_auth_url: str) -> HiddenlayerServiceClient:
-    """Return a HiddenlayerServiceClient authenticated with the given credentials."""
-    hl_client = HiddenlayerServiceClient(
-        host=hl_api_url,
-        auth_url=hl_auth_url,
-        api_id=hl_creds.client_id,
-        api_key=hl_creds.client_secret)
+def hl_auth(hl_creds: HLCredentials, hl_api_url: str, environment: str) -> HiddenLayer:
+    """Return a HiddenLayer authenticated with the given credentials."""
+    if environment is None:
+        # on prem scanner, use the api url directly
+        hl_client = HiddenLayer(base_url=hl_api_url)
+    else:
+        # saas scanner, pass environment and credentials to authenticate
+        hl_client = HiddenLayer(
+            environment=environment,
+            client_id=hl_creds.client_id,
+            client_secret=hl_creds.client_secret)
     return hl_client
 
 def _reverse_full_model_name(full_model_name: str) -> str:
@@ -261,8 +279,8 @@ def _reverse_full_model_name(full_model_name: str) -> str:
     parts = full_model_name.split(".")
     return f"{parts[2]}.{parts[1]}.{parts[0]}"
 
-def hl_scan_folder(hl_client: HiddenlayerServiceClient,
-                   full_model_name: str, model_version_num: int, local_dir: str) -> ScanResults:
+def hl_scan_folder(hl_client: HiddenLayer,
+                   full_model_name: str, model_version_num: int, local_dir: str) -> ScanReport:
     """Scan model artifacts in the local directory using the credentials. Return the scan results."""
     hl_model_name = _reverse_full_model_name(full_model_name)
     return hl_client.model_scanner.scan_folder(
@@ -285,18 +303,18 @@ def hl_scan_folder(hl_client: HiddenlayerServiceClient,
 
 # After scanning, set model version tags in the registry
 
-def tag_model_version_with_scan_results(model_version: ModelVersion, scan_results: ScanResults, hl_console_url: str):
+def tag_model_version_with_scan_results(model_version: ModelVersion, scan_report: ScanReport, hl_console_url: str):
     """Tag the model version in the MLflow model registry with the scan results."""
     clear_tags(model_version)   # erase any stale tags
-    status = scan_results.status
+    status = scan_report.status
     set_model_version_tag(model_version, HL_SCAN_STATUS, status)
     if status == "done":
-        set_model_version_tag(model_version, HL_SCAN_THREAT_LEVEL, scan_results.severity)
-        set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, scan_results.end_time)
-        set_model_version_tag(model_version, HL_SCAN_SCANNER_VERSION, scan_results.version)
+        set_model_version_tag(model_version, HL_SCAN_THREAT_LEVEL, scan_report.severity)
+        set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, scan_report.end_time)
+        set_model_version_tag(model_version, HL_SCAN_SCANNER_VERSION, scan_report.version)
         if hl_console_url is not None:
             # scan_result.inventory sub object is populated only when using Saas scanner
-            hl_scan_url = f"{hl_console_url}/model-details/{scan_results.inventory.model_id}/scans/{scan_results.scan_id}"
+            hl_scan_url = f"{hl_console_url}/model-details/{scan_report.inventory.model_id}/scans/{scan_report.scan_id}"
             set_model_version_tag(model_version, HL_SCAN_URL, hl_scan_url)
 
 # COMMAND ----------
@@ -329,9 +347,11 @@ try:
         client = mlflow_client()
         if run_id:
             # See https://mlflow.org/docs/latest/python_api/mlflow.client.html?highlight=download_artifacts#mlflow.client.MlflowClient.download_artifacts
+            print(f"Downloading model artifacts from run {run_id}")
             local_path = client.download_artifacts(run_id=run_id, path="", dst_path=temp_dir)
         else:
             # See https://mlflow.org/docs/latest/python_api/mlflow.artifacts.html?highlight=download_artifacts#mlflow.artifacts.download_artifacts
+            print(f"Downloading model artifacts from source {source}")
             local_path = mlflow.artifacts.download_artifacts(artifact_uri=source, dst_path=temp_dir)
         #local_path="/tmp/hl_debug"     # for debugging
         catalog, schema, _ = parse_full_model_name(config.full_model_name)
@@ -340,13 +360,13 @@ try:
             hl_creds = HLCredentials(client_id="", client_secret="")
         else:
             hl_creds = get_hl_api_creds(catalog, schema, config.hl_api_key_name)
-        hl_client = hl_auth(hl_creds, config.hl_api_url, config.hl_auth_url)
+        hl_client = hl_auth(hl_creds, config.hl_api_url, config.hl_environment)
         print(f"Scanning model artifacts in {local_path}")
         # For testing, bump the version number to simulate a new version: or delete the model card in the console UI
         #model_version_num += 2
         tag_for_scanning(mv)
-        scan_results = hl_scan_folder(hl_client, config.full_model_name, config.model_version_num, local_path)
-        tag_model_version_with_scan_results(mv, scan_results, config.hl_console_url)
+        scan_report = hl_scan_folder(hl_client, config.full_model_name, config.model_version_num, local_path)
+        tag_model_version_with_scan_results(mv, scan_report, config.hl_console_url)
 except Exception as e:
     message = f"Unexpected error scanning model: {e}"
     if hasattr(e, 'status') and e.status == 400:

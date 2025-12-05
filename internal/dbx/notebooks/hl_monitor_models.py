@@ -87,14 +87,14 @@ class Configuration:
     catalogs_and_schemas: List[CatalogSchemaConfiguration]
     hl_api_key_name: str
     hl_api_url: str
-    hl_auth_url: str
     hl_console_url: str
-    def __init__(self, catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_auth_url, hl_console_url):
+    hl_environment: str
+    def __init__(self, catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_console_url, hl_environment):
         self.catalogs_and_schemas = catalogs_and_schemas
         self.hl_api_key_name = hl_api_key_name
-        self.hl_api_url = hl_api_url
-        self.hl_auth_url = hl_auth_url
         self.hl_console_url = hl_console_url
+        self.hl_api_url = hl_api_url
+        self.hl_environment = hl_environment
 
 def get_job_params() -> Configuration:
     """Return catalog, schema, and HL API key name"""
@@ -114,13 +114,21 @@ def get_job_params() -> Configuration:
         catalogs_and_schemas.append(CatalogSchemaConfiguration(catalog, schema))
 
     hl_api_url = dbutils.widgets.get("hl_api_url")
-    assert hl_api_url is not None, "hl_api_url is a required job parameter"
-
-    hl_auth_url = dbutils.widgets.get("hl_auth_url")
-    assert hl_auth_url is not None, "hl_auth_url is a required job parameter"
-
-    hl_console_url = None
-    hl_api_key_name = None
+    hl_environment = dbutils.widgets.get("hl_environment")
+    # if neither an environment nor an api url is provided, default to prod-us env
+    if hl_environment is None and hl_api_url is None:
+        hl_environment = "prod-us"
+    elif hl_environment is None:
+        # determine if api url is pointing at a HL Saas API or an on prem scanner
+        if is_enterprise_scanner(hl_api_url):
+            hl_environment = None
+        elif hl_api_url == "https://api.eu.hiddenlayer.ai":
+            hl_environment = "prod-eu"
+        elif hl_api_url == "https://api.us.hiddenlayer.ai":
+            hl_environment = "prod-us"
+        else:
+            raise ValueError("Invalid hl_api_url")
+    # else case here indicates that an HL environment was passed explicitly
 
     # Saas scanner, API credentials should be encoded in a key and a console url should be provided
     if not is_enterprise_scanner(hl_api_url):
@@ -130,7 +138,7 @@ def get_job_params() -> Configuration:
         hl_console_url = dbutils.widgets.get("hl_console_url")
         assert hl_console_url is not None, "hl_console_url is a required job parameter"
 
-    return Configuration(catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_auth_url, hl_console_url)
+    return Configuration(catalogs_and_schemas, hl_api_key_name, hl_api_url, hl_console_url, hl_environment)
 
 
 # COMMAND ----------
@@ -453,5 +461,5 @@ max_new_jobs = max(MAX_ACTIVE_SCAN_JOBS - num_active_jobs, 0)
 num_new_jobs = min(max_new_jobs, len(models_to_scan))
 for i in range(num_new_jobs):
     mv = models_to_scan[i]
-    run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_auth_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
+    run_id = scan_model(mv, config.hl_api_key_name, config.hl_api_url, config.hl_console_url, HL_SCAN_NOTEBOOK_TIMEOUT_MINS)
     print(f"Scanning model {mv.name} version {mv.version}, job run_id is {run_id}")
