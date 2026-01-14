@@ -114,7 +114,9 @@ def get_job_params() -> Configuration:
         catalogs_and_schemas.append(CatalogSchemaConfiguration(catalog, schema))
 
     hl_api_url = dbutils.widgets.get("hl_api_url")
-    hl_environment = dbutils.widgets.get("hl_environment")
+    hl_environment = None
+    if "hl_environment" in dbutils.widgets.getAll().keys():
+        hl_environment = dbutils.widgets.get("hl_environment")
     # if neither an environment nor an api url is provided, default to prod-us env
     if hl_environment is None and hl_api_url is None:
         hl_environment = "prod-us"
@@ -346,7 +348,7 @@ from datetime import datetime
 from mlflow.entities.model_registry import ModelVersion
 from pathlib import Path
 
-def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_auth_url: str, hl_console_url: str, timeout_minutes: int) -> int:
+def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_console_url: str, timeout_minutes: int) -> int:
     """Run a scan job on a model version. Don't wait for it to finish. Return the run_id."""
     job_name = f"hl_scan_{mv.name}.{mv.version}"
     notebook_path = Path(getcwd()) / HL_SCAN_NOTEBOOK
@@ -355,7 +357,6 @@ def scan_model(mv: ModelVersion, hl_api_key_name: str, hl_api_url: str, hl_auth_
     parameters={"full_model_name": mv.name,
                 "model_version_num": str(mv.version),
                 "hl_api_url": hl_api_url,
-                "hl_auth_url": hl_auth_url,
                 }
     # optional parameters only needed by Saas scanner workflows
     if hl_console_url:
