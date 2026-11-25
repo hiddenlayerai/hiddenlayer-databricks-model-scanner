@@ -170,7 +170,7 @@ def fail_and_exit_with_message(model_version: ModelVersion, message: str) -> Non
     clear_tags(model_version, [HL_SCAN_RUN_ID])
 
     set_model_version_tag(model_version, HL_SCAN_STATUS, STATUS_FAILED)
-    set_model_version_tag(model_version, HL_SCAN_MESSAGE, message)
+    set_model_version_tag(model_version, HL_SCAN_MESSAGE, message[:999])
     set_model_version_tag(model_version, HL_SCAN_UPDATED_AT, datetime.now().isoformat())
 
     # Raise an exception, rather than calling dbutils.notebook.exit(), so that the job will show as failed.
